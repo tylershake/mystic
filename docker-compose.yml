@@ -73,6 +73,8 @@ services:
     image: atlassian/confluence:latest
     container_name: confluence
     restart: unless-stopped
+    depends_on:
+      - postgresdbone
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.confluence.rule=Host(`confluence.mystic.home`)"
@@ -103,6 +105,8 @@ services:
     image: atlassian/jira-software:latest
     container_name: jira
     restart: unless-stopped
+    depends_on:
+      - postgresdbtwo
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jira.rule=Host(`jira.mystic.home`)"
@@ -131,6 +135,8 @@ services:
     image: atlassian/bitbucket:latest
     container_name: bitbucket
     restart: unless-stopped
+    depends_on:
+      - postgresdbthree
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bitbucket.rule=Host(`bitbucket.mystic.home`)"
@@ -159,6 +165,7 @@ services:
 
   postgresdbfour:
     image: postgres:latest
+    container_name: postgresdbfour
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
