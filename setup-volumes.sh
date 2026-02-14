@@ -324,6 +324,7 @@ print_summary() {
 
 main() {
     local root_path="$DEFAULT_ROOT"
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -409,6 +410,23 @@ main() {
         ((dir_count++)) || true
     done <<< "$volumes"
 
+    echo
+
+    # Copy configuration files
+    print_info "Copying configuration files..."
+    if [[ -f "$SCRIPT_DIR/config/traefik.toml" ]]; then
+        if [[ "$DRY_RUN" == true ]]; then
+            print_info "[DRY RUN] Would copy: config/traefik.toml → $root_path/traefik/traefik.toml"
+        else
+            cp "$SCRIPT_DIR/config/traefik.toml" "$root_path/traefik/traefik.toml"
+            # Set ownership to match traefik container (root)
+            chown 0:0 "$root_path/traefik/traefik.toml"
+            chmod 644 "$root_path/traefik/traefik.toml"
+            print_success "Copied: config/traefik.toml → $root_path/traefik/traefik.toml"
+        fi
+    else
+        print_warning "config/traefik.toml not found in repo — skipping"
+    fi
     echo
 
     # Print summary

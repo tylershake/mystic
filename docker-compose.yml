@@ -13,7 +13,7 @@
 # 5. Set up DNS for *.mystic.home domains
 #
 # SERVICES:
-# - Traefik: Reverse proxy (ports 80, 443, 8080)
+# - Traefik: Reverse proxy (ports 80, 8080)
 # - Nginx Gateway: Landing page (home.mystic.home)
 # - Nextcloud: File storage (cloud.mystic.home)
 # - Jenkins: CI/CD (jenkins.mystic.home)
@@ -44,7 +44,6 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"       # HTTP entry point
-      - "443:443"     # HTTPS entry point
       - "8080:8080"   # Dashboard (WARNING: publicly accessible without auth)
     volumes:
       # Main configuration file (must be created before starting)
