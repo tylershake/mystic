@@ -1,128 +1,232 @@
-version: '3'
-
 services:
   traefik:
-    image: traefik:1.6.2
+    image: traefik:latest
     container_name: traefik
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
-    labels:
-      - traefik.backend=monitor
-      - traefik.frontend.rule=Host:monitor.mystic.home
-      - traefik.port=8080
-      - traefik.docker.network=proxy
-      - traefik.enable=true
-    networks:
-      - proxy
+      - "8080:8080"
     volumes:
+      - /data/docker/traefik/traefik.toml:/traefik.toml
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/external_one/docker/traefik/traefik.toml:/traefik.toml
-      - /mnt/external_one/docker/traefik/certs/:/certs/
-
-  nginx:
-    image: nginx:1.14-alpine
-    container_name: nginx
-    labels:
-      - traefik.backend=home
-      - traefik.frontend.rule=Host:mystic.home
-      - traefik.port=80
-      - traefik.docker.network=proxy
-      - traefik.enable=true
-    expose:
-      - "80"
     networks:
-      - proxy
-    volumes:
-      - /mnt/external_one/docker/nginx/html/:/usr/share/nginx/html/
-      - /mnt/external_one/docker/nginx/nginx.conf:/etc/nginx/conf.d/mystic_nginx.conf
-      - /mnt/external_one/docker/nginx/.htpasswd:/etc/nginx/.htpasswd
+      - web
 
   nextcloud:
-    image: nextcloud:13.0.2
+    image: nextcloud:latest
     container_name: nextcloud
+    restart: unless-stopped
     depends_on:
-      - postgres_one
+      - mariadbone
     labels:
-      - traefik.backend=cloud
-      - traefik.frontend.rule=Host:cloud.mystic.home
-      - traefik.port=80
-      - traefik.docker.network=proxy
-      - traefik.enable=true
+      - "traefik.enable=true"
+      - "traefik.http.routers.cloud.rule=Host(`cloud.mystic.home`)"
+      - "traefik.http.services.cloud.loadbalancer.server.port=80"
     expose:
       - "80"
     networks:
-      - proxy
-      - internal
+      - web
     environment:
-      - NEXTCLOUD_ADMIN_USER=admin
-      - NEXTCLOUD_ADMIN_PASSWORD=admin
-      - POSTGRES_DB=mystic
-      - POSTGRES_USER=mystic
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_HOST=postgres_one
-    volumes:
-      - /mnt/external_one/docker/nextcloud:/var/www/html
-      - /mnt/external_one/docker/nextcloud/apps:/var/www/html/custom_apps
-      - /mnt/external_one/docker/nextcloud/config:/var/www/html/config
-      - /mnt/external_one/docker/nextcloud/data:/var/www/html/data
-      - /mnt/external_one/docker/nextcloud/themes:/var/www/html/themes
-
-  wordpress:
-    image: wordpress:4.9.6
-    container_name: wordpress
-    depends_on:
-      - mysql_one
-    labels:
-      - traefik.backend=blog
-      - traefik.frontend.rule=Host:blog.mystic.home
-      - traefik.port=80
-      - traefik.docker.network=proxy
-      - traefik.enable=true
-    environment:
-      - WORDPRESS_DB_HOST=mysql_one
-      - WORDPRESS_DB_USER=mystic
-      - WORDPRESS_DB_PASSWORD=password
-      - WORDPRESS_DB_NAME=mystic
-    expose:
-      - "80"
-    networks:
-      - proxy
-      - internal
-    volumes:
-      - /mnt/external_one/docker/wordpress:/var/www/html
-
-  postgres_one:
-    image: postgres:10.4-alpine
-    container_name: postgres_one
-    environment:
-      - POSTGRES_USER=mystic
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=mystic
-    expose:
-      - "5432"
-    networks:
-      - internal
-    volumes:
-      - /mnt/external_one/docker/pg_db_one:/var/lib/postgresql/data
-
-  mysql_one:
-    image: hypriot/rpi-mysql:5.5
-    container_name: mysql_one
-    environment:
-      - MYSQL_ROOT_PASSWORD=password
-      - MYSQL_DATABASE=mystic
+      - NEXTCLOUD_ADMIN_USER=mystic
+      - NEXTCLOUD_ADMIN_PASSWORD=password
+      - NEXTCLOUD_TRUSTED_DOMAINS=cloud.mystic.home
+      - MYSQL_DATABASE=home
       - MYSQL_USER=mystic
       - MYSQL_PASSWORD=password
-    expose:
-      - "3306"
-    networks:
-      - internal
+      - MYSQL_HOST=mariadbone
     volumes:
-      - /mnt/external_one/docker/mysql_db_one:/var/lib/mysql
+      - /data/docker/nextcloud:/var/www/html
+
+  mariadbone:
+    image: mariadb:latest
+    container_name: mariadbone
+    restart: unless-stopped
+    environment:
+      - MYSQL_USER=mystic
+      - MYSQL_PASSWORD=password
+      - MYSQL_DATABASE=home
+      - MYSQL_ROOT_PASSWORD=password
+    networks:
+      - web
+    volumes:
+      - /data/docker/mariadbone:/var/lib/mysql
+
+  jenkins:
+    image: jenkins/jenkins:latest
+    container_name: jenkins
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jenkins.rule=Host(`jenkins.mystic.home`)"
+      - "traefik.http.services.jenkins.loadbalancer.server.port=8080"
+    expose:
+      - "8080"
+    ports:
+      - "50000:50000"
+    networks:
+      - web
+    volumes:
+      - /data/docker/jenkins/:/var/jenkins_home
+
+  confluence:
+    image: atlassian/confluence:latest
+    container_name: confluence
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.confluence.rule=Host(`confluence.mystic.home`)"
+      - "traefik.http.services.confluence.loadbalancer.server.port=8090"
+    expose:
+      - "8090"
+    ports:
+      - "8091:8091"
+    networks:
+      - web
+    volumes:
+      - /data/docker/confluence/:/var/atlassian/application-data/confluence
+
+  postgresdbone:
+    image: postgres:latest
+    container_name: postgresdbone
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=mystic
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=home
+    networks:
+      - web
+    volumes:
+      - /data/docker/postgresdbone:/var/lib/postgresql/data
+
+  jira:
+    image: atlassian/jira-software:latest
+    container_name: jira
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jira.rule=Host(`jira.mystic.home`)"
+      - "traefik.http.services.jira.loadbalancer.server.port=8080"
+    expose:
+      - "8080"
+    networks:
+      - web
+    volumes:
+      - /data/docker/jira/:/var/atlassian/application-data/jira
+
+  postgresdbtwo:
+    image: postgres:latest
+    container_name: postgresdbtwo
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=mystic
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=home
+    networks:
+      - web
+    volumes:
+      - /data/docker/postgresdbtwo:/var/lib/postgresql/data
+
+  bitbucket:
+    image: atlassian/bitbucket:latest
+    container_name: bitbucket
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bitbucket.rule=Host(`bitbucket.mystic.home`)"
+      - "traefik.http.services.bitbucket.loadbalancer.server.port=7990"
+    expose:
+      - "7990"
+    ports:
+      - "7999:7999"
+    networks:
+      - web
+    volumes:
+      - /data/docker/bitbucket/:/var/atlassian/application-data/bitbucket
+
+  postgresdbthree:
+    image: postgres:latest
+    container_name: postgresdbthree
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=mystic
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=home
+    networks:
+      - web
+    volumes:
+      - /data/docker/postgresdbthree:/var/lib/postgresql/data
+
+  postgresdbfour:
+    image: postgres:latest
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    volumes:
+      - /data/docker/postgresdbfour:/var/lib/postgresql/data
+    environment:
+      # timezone inside container
+      - TZ=UTC
+
+      # necessary Postgres options/variables
+      - POSTGRES_USER=mystic
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=mattermost
+    networks:
+      - web
+
+  mattermost:
+    depends_on:
+      - postgresdbfour
+    image: mattermost/mattermost-enterprise-edition:latest
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 200
+    read_only: false
+    expose:
+      - "8065"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mattermost.rule=Host(`chat.mystic.home`)"
+      - "traefik.http.routers.mattermost.entrypoints=websecure"
+      - "traefik.http.routers.mattermost.tls=true"
+      - "traefik.http.routers.mattermost.tls.certresolver=default"
+      - "traefik.http.services.mattermost.loadbalancer.server.port=8065"
+    tmpfs:
+      - /tmp
+    volumes:
+      - /data/docker/mattermost/config:/mattermost/config:rw
+      - /data/docker/mattermost/data:/mattermost/data:rw
+      - /data/docker/mattermost/logs:/mattermost/logs:rw
+      - /data/docker/mattermost/plugins:/mattermost/plugins:rw
+      - /data/docker/mattermost/clientplugins:/mattermost/client/plugins:rw
+      - /data/docker/mattermost/bleveindexes:/mattermost/bleve-indexes:rw
+      # When you want to use SSO with GitLab, you have to add the cert pki chain of GitLab inside Alpine
+      # to avoid Token request failed: certificate signed by unknown authority
+      # (link: https://github.com/mattermost/mattermost-server/issues/13059 and https://github.com/mattermost/docker/issues/34)
+      # - ${GITLAB_PKI_CHAIN_PATH}:/etc/ssl/certs/pki_chain.pem:ro
+    environment:
+      # timezone inside container
+      - TZ=UTC
+
+      # necessary Mattermost options/variables (see env.example)
+      - MM_SQLSETTINGS_DRIVERNAME=postgres
+      - MM_SQLSETTINGS_DATASOURCE=postgres://mystic:password@postgresdbfour:5432/mattermost?sslmode=disable&connect_timeout=10
+
+      # necessary for bleve
+      - MM_BLEVESETTINGS_INDEXDIR=/mattermost/bleve-indexes
+
+      # additional settings
+      - MM_SERVICESETTINGS_SITEURL=http://chat.mystic.home
+    networks:
+      - web
 
 networks:
-  proxy:
+  web:
     external: true
-  internal:
-    external: false
