@@ -254,7 +254,7 @@ create_directory() {
 
     # Set ownership FIRST (before restrictive permissions)
     if chown "$uid:$gid" "$dir"; then
-        [[ "$VERBOSE" == true ]] && print_info "  Ownership: $uid:$gid"
+        if [[ "$VERBOSE" == true ]]; then print_info "  Ownership: $uid:$gid"; fi
     else
         print_error "  Failed to set ownership: $uid:$gid"
         return 1
@@ -262,10 +262,12 @@ create_directory() {
 
     # Set permissions AFTER ownership
     if chmod "$perms" "$dir"; then
-        [[ "$VERBOSE" == true ]] && print_info "  Permissions: $perms"
+        if [[ "$VERBOSE" == true ]]; then print_info "  Permissions: $perms"; fi
     else
         print_warning "  Failed to set permissions: $perms"
     fi
+
+    return 0
 }
 
 verify_uids() {
