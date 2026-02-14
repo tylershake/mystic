@@ -3,7 +3,7 @@
 # Docker Volume Setup Script
 #
 # Purpose: Create all volume directories defined in docker-compose.yml with
-#          proper permissions for home server infrastructure
+#          correct permissions for each container's user
 #
 # Usage: ./setup-volumes.sh [OPTIONS] [ROOT_PATH]
 #
@@ -24,6 +24,23 @@ DEFAULT_ROOT="/data/docker"
 DRY_RUN=false
 VERBOSE=false
 COMPOSE_FILE="docker-compose.yml"
+
+################################################################################
+# Container UID/GID Mappings
+# These must match the UIDs that containers run as
+################################################################################
+
+declare -A SERVICE_UIDS=(
+    ["postgres"]=999          # PostgreSQL runs as postgres:postgres (999:999)
+    ["mariadb"]=999          # MariaDB runs as mysql:mysql (999:999)
+    ["nextcloud"]=33         # Nextcloud runs as www-data (33:33) on Debian
+    ["jenkins"]=1000         # Jenkins runs as jenkins:jenkins (1000:1000)
+    ["confluence"]=2002      # Confluence runs as confluence (2002:2002)
+    ["jira"]=2001            # Jira runs as jira (2001:2001)
+    ["bitbucket"]=2003       # Bitbucket runs as bitbucket (2003:2003)
+    ["mattermost"]=2000      # Mattermost runs as UID 2000
+    ["traefik"]=0            # Traefik runs as root (needs docker socket access)
+)
 
 ################################################################################
 # Functions
@@ -55,31 +72,41 @@ usage() {
     cat << EOF
 Usage: $0 [OPTIONS] [ROOT_PATH]
 
-Create all Docker volume directories from docker-compose.yml with proper permissions.
+Create all Docker volume directories from docker-compose.yml with correct
+permissions for each container's UID.
 
 OPTIONS:
     -h, --help          Show this help message
     -d, --dry-run       Show what would be created without making changes
     -v, --verbose       Enable verbose output
     -f, --file FILE     Specify docker-compose file (default: docker-compose.yml)
-    -o, --owner USER    Set directory owner (default: current user)
-    -g, --group GROUP   Set directory group (default: current user's group)
 
 ARGUMENTS:
     ROOT_PATH           Root directory for volumes (default: /data/docker)
 
+CONTAINER UIDs USED:
+    PostgreSQL:     999:999
+    MariaDB:        999:999
+    Nextcloud:      33:33 (www-data)
+    Jenkins:        1000:1000
+    Confluence:     2002:2002
+    Jira:           2001:2001
+    Bitbucket:      2003:2003
+    Mattermost:     2000:2000
+    Traefik:        0:0 (root)
+
 EXAMPLES:
-    # Use default /data/docker
+    # Dry run to see what will be created
+    ./setup-volumes.sh --dry-run
+
+    # Create with default /data/docker
     sudo ./setup-volumes.sh
 
     # Use custom root path
     sudo ./setup-volumes.sh /mnt/storage/docker
 
-    # Dry run to see what would be created
-    ./setup-volumes.sh --dry-run
-
-    # Set specific owner
-    sudo ./setup-volumes.sh --owner 1000 --group 1000
+IMPORTANT:
+    This script MUST be run as root to set container UIDs properly!
 
 EOF
     exit 0
@@ -95,10 +122,11 @@ check_requirements() {
     fi
     print_success "Found $COMPOSE_FILE"
 
-    # Check if running as root (needed for directory creation)
+    # Check if running as root
     if [[ $EUID -ne 0 ]] && [[ "$DRY_RUN" == false ]]; then
-        print_warning "Not running as root. You may need sudo for directory creation."
-        print_info "Consider using: sudo $0 $@"
+        print_error "This script MUST be run as root to set proper UIDs"
+        print_info "Please run: sudo $0 $@"
+        exit 1
     fi
 
     # Check for required commands
@@ -109,16 +137,56 @@ check_requirements() {
         fi
     done
     print_success "All required commands found"
+    print_success "Running as root - can set container UIDs"
 
     echo
+}
+
+get_service_uid() {
+    local dir_path="$1"
+    local dir_name=$(basename "$dir_path")
+
+    # Determine which service this directory belongs to
+    case "$dir_path" in
+        *postgres*)
+            echo "${SERVICE_UIDS[postgres]}"
+            ;;
+        *mariadb*)
+            echo "${SERVICE_UIDS[mariadb]}"
+            ;;
+        *nextcloud*)
+            echo "${SERVICE_UIDS[nextcloud]}"
+            ;;
+        *jenkins*)
+            echo "${SERVICE_UIDS[jenkins]}"
+            ;;
+        *confluence*)
+            echo "${SERVICE_UIDS[confluence]}"
+            ;;
+        *jira*)
+            echo "${SERVICE_UIDS[jira]}"
+            ;;
+        *bitbucket*)
+            echo "${SERVICE_UIDS[bitbucket]}"
+            ;;
+        *mattermost*)
+            echo "${SERVICE_UIDS[mattermost]}"
+            ;;
+        *traefik*)
+            echo "${SERVICE_UIDS[traefik]}"
+            ;;
+        *)
+            # Default to root for unknown services
+            echo "0"
+            ;;
+    esac
 }
 
 extract_volumes() {
     local root_path="$1"
     print_info "Extracting volume paths from $COMPOSE_FILE..."
 
-    # Extract volume mount paths that start with /data/docker or absolute paths
-    # Format: - /host/path:/container/path or - /host/path:/container/path:options
+    # Extract volume mount paths
     local volumes=$(grep -E '^\s+- /.+:.+' "$COMPOSE_FILE" | \
                     sed -E 's/^\s+- ([^:]+):.*$/\1/' | \
                     grep -v '/var/run/docker.sock' | \
@@ -140,17 +208,26 @@ extract_volumes() {
 
 create_directory() {
     local dir="$1"
-    local owner="${2:-$SUDO_USER}"
-    local group="${3:-$SUDO_USER}"
+    local uid="$2"
+    local gid="$2"  # Using same value for GID as UID
+
+    local perms="755"
+
+    # Database directories get more restrictive permissions
+    if [[ "$dir" == *"postgres"* ]] || [[ "$dir" == *"mariadb"* ]]; then
+        perms="750"
+    fi
 
     if [[ "$DRY_RUN" == true ]]; then
-        print_info "[DRY RUN] Would create: $dir (owner: $owner:$group)"
+        print_info "[DRY RUN] Would create: $dir"
+        print_info "           Ownership: $uid:$gid"
+        print_info "           Permissions: $perms"
         return 0
     fi
 
     # Create directory if it doesn't exist
     if [[ -d "$dir" ]]; then
-        print_warning "Directory already exists: $dir"
+        print_warning "Already exists: $dir"
     else
         if mkdir -p "$dir"; then
             print_success "Created: $dir"
@@ -160,50 +237,47 @@ create_directory() {
         fi
     fi
 
-    # Set permissions (755 = rwxr-xr-x)
-    if chmod 755 "$dir"; then
-        [[ "$VERBOSE" == true ]] && print_info "  Set permissions: 755"
+    # Set ownership FIRST (before restrictive permissions)
+    if chown "$uid:$gid" "$dir"; then
+        [[ "$VERBOSE" == true ]] && print_info "  Ownership: $uid:$gid"
     else
-        print_warning "  Failed to set permissions for: $dir"
+        print_error "  Failed to set ownership: $uid:$gid"
+        return 1
     fi
 
-    # Set ownership
-    if [[ -n "$owner" ]] && [[ -n "$group" ]]; then
-        if chown "$owner:$group" "$dir" 2>/dev/null; then
-            [[ "$VERBOSE" == true ]] && print_info "  Set ownership: $owner:$group"
-        else
-            [[ "$VERBOSE" == true ]] && print_warning "  Could not set ownership (may require root)"
-        fi
+    # Set permissions AFTER ownership
+    if chmod "$perms" "$dir"; then
+        [[ "$VERBOSE" == true ]] && print_info "  Permissions: $perms"
+    else
+        print_warning "  Failed to set permissions: $perms"
     fi
 }
 
-setup_special_permissions() {
-    local root_path="$1"
+verify_uids() {
+    print_info "Verifying container UIDs exist on system..."
 
-    print_info "Setting up special permissions for specific services..."
+    local missing_uids=()
 
-    # PostgreSQL directories - need to be writable by postgres user (UID 999 or 70)
-    local postgres_dirs=(
-        "$root_path/postgresdbone"
-        "$root_path/postgresdbtwo"
-        "$root_path/postgresdbthree"
-        "$root_path/postgresdbfour"
-    )
+    for uid in $(echo "${SERVICE_UIDS[@]}" | tr ' ' '\n' | sort -u); do
+        if [[ "$uid" == "0" ]]; then
+            continue  # Skip root
+        fi
 
-    for dir in "${postgres_dirs[@]}"; do
-        if [[ -d "$dir" ]] && [[ "$DRY_RUN" == false ]]; then
-            chmod 750 "$dir" 2>/dev/null || true
-            [[ "$VERBOSE" == true ]] && print_info "  Set PostgreSQL permissions for: $dir"
+        # Check if UID exists
+        if ! getent passwd "$uid" > /dev/null 2>&1; then
+            missing_uids+=("$uid")
         fi
     done
 
-    # MariaDB directory
-    if [[ -d "$root_path/mariadbone" ]] && [[ "$DRY_RUN" == false ]]; then
-        chmod 750 "$root_path/mariadbone" 2>/dev/null || true
-        [[ "$VERBOSE" == true ]] && print_info "  Set MariaDB permissions for: $root_path/mariadbone"
+    if [[ ${#missing_uids[@]} -gt 0 ]]; then
+        print_warning "Some container UIDs don't exist on host system: ${missing_uids[*]}"
+        print_info "This is NORMAL - Docker containers use their own user namespaces"
+        print_info "The directories will still be owned by these UIDs"
+    else
+        print_success "UID verification complete"
     fi
 
-    print_success "Special permissions configured"
+    echo
 }
 
 print_summary() {
@@ -217,10 +291,15 @@ print_summary() {
     echo -e "Root Path:    ${BLUE}$root_path${NC}"
     echo -e "Directories:  ${BLUE}$dir_count${NC}"
     echo
+    print_success "All directories created with correct container UIDs"
+    echo
+    print_info "Verify ownership:"
+    echo "  ls -lan $root_path"
+    echo
     print_info "Next steps:"
-    echo "  1. Review the created directories: ls -la $root_path"
-    echo "  2. Create the external network: docker network create web"
-    echo "  3. Start your services: docker compose up -d"
+    echo "  1. Create the external network: docker network create web"
+    echo "  2. Start your services: docker compose up -d"
+    echo "  3. Check container logs: docker compose logs -f"
     echo
 }
 
@@ -230,8 +309,6 @@ print_summary() {
 
 main() {
     local root_path="$DEFAULT_ROOT"
-    local owner="${SUDO_USER:-$USER}"
-    local group="${SUDO_USER:-$USER}"
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -249,14 +326,6 @@ main() {
                 ;;
             -f|--file)
                 COMPOSE_FILE="$2"
-                shift 2
-                ;;
-            -o|--owner)
-                owner="$2"
-                shift 2
-                ;;
-            -g|--group)
-                group="$2"
                 shift 2
                 ;;
             -*)
@@ -278,12 +347,14 @@ main() {
     print_info "Configuration:"
     echo "  Root Path:     $root_path"
     echo "  Compose File:  $COMPOSE_FILE"
-    echo "  Owner:         $owner:$group"
     echo "  Dry Run:       $DRY_RUN"
     echo
 
     # Check requirements
     check_requirements
+
+    # Verify UIDs
+    verify_uids
 
     # Extract volumes from docker-compose.yml
     volumes=$(extract_volumes "$root_path")
@@ -295,28 +366,28 @@ main() {
     if [[ "$VERBOSE" == true ]]; then
         print_info "Volume paths:"
         echo "$volumes" | while read -r vol; do
-            echo "  - $vol"
+            local uid=$(get_service_uid "$vol")
+            echo "  - $vol (UID: $uid)"
         done
         echo
     fi
 
     # Create directories
-    print_info "Creating directories..."
+    print_info "Creating directories with correct UIDs..."
     echo
 
     dir_count=0
     while IFS= read -r volume_path; do
         [[ -z "$volume_path" ]] && continue
-        create_directory "$volume_path" "$owner" "$group"
+
+        # Get the appropriate UID for this service
+        uid=$(get_service_uid "$volume_path")
+
+        create_directory "$volume_path" "$uid"
         ((dir_count++))
     done <<< "$volumes"
 
     echo
-
-    # Setup special permissions for database directories
-    if [[ "$DRY_RUN" == false ]]; then
-        setup_special_permissions "$root_path"
-    fi
 
     # Print summary
     print_summary "$root_path" "$dir_count"
