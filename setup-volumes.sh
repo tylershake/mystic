@@ -199,7 +199,7 @@ get_service_uid() {
 
 extract_volumes() {
     local root_path="$1"
-    print_info "Extracting volume paths from $COMPOSE_FILE..."
+    print_info "Extracting volume paths from $COMPOSE_FILE..." >&2
 
     # Extract volume mount paths
     local volumes=$(grep -E '^\s+- /.+:.+' "$COMPOSE_FILE" | \
@@ -209,7 +209,7 @@ extract_volumes() {
                     sort -u)
 
     if [[ -z "$volumes" ]]; then
-        print_error "No volumes found in $COMPOSE_FILE"
+        print_error "No volumes found in $COMPOSE_FILE" >&2
         exit 1
     fi
 
