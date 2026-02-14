@@ -202,7 +202,7 @@ services:
   # Database: home
   #-----------------------------------------------------------------------------
   postgresdbfive:
-    image: postgres:latest
+    image: postgres:14.21-alpine
     container_name: postgresdbfive
     restart: unless-stopped
     environment:
@@ -254,7 +254,7 @@ services:
   # Database: home
   #-----------------------------------------------------------------------------
   postgresdbone:
-    image: postgres:latest
+    image: postgres:14.21-alpine
     container_name: postgresdbone
     restart: unless-stopped
     environment:
@@ -303,7 +303,7 @@ services:
   # Database: home
   #-----------------------------------------------------------------------------
   postgresdbtwo:
-    image: postgres:latest
+    image: postgres:14.21-alpine
     container_name: postgresdbtwo
     restart: unless-stopped
     environment:
@@ -355,7 +355,7 @@ services:
   # Database: home
   #-----------------------------------------------------------------------------
   postgresdbthree:
-    image: postgres:latest
+    image: postgres:14.21-alpine
     container_name: postgresdbthree
     restart: unless-stopped
     environment:
@@ -377,7 +377,7 @@ services:
   # Security: read-only filesystem, no new privileges, limited PIDs
   #-----------------------------------------------------------------------------
   postgresdbfour:
-    image: postgres:latest
+    image: postgres:14.21-alpine
     container_name: postgresdbfour
     restart: unless-stopped
     # Enhanced security settings
