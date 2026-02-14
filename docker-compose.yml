@@ -76,8 +76,8 @@ services:
       # Static website files (HTML/CSS/JS from separate repo)
       # Place your gateway page implementation here
       - /data/docker/gateway/html:/usr/share/nginx/html:ro
-      # Optional: Custom nginx configuration
-      - /data/docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Optional: Custom nginx configuration (uncomment if you have one)
+      # - /data/docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
 
   #-----------------------------------------------------------------------------
   # NEXTCLOUD - File Storage & Collaboration
