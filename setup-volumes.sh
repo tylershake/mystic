@@ -406,7 +406,7 @@ main() {
         uid=$(get_service_uid "$volume_path")
 
         create_directory "$volume_path" "$uid"
-        ((dir_count++))
+        ((dir_count++)) || true
     done <<< "$volumes"
 
     echo
