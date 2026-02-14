@@ -7,13 +7,16 @@ A comprehensive self-hosted infrastructure setup using Docker Compose, featuring
 This project provides a complete home server stack with the following services:
 
 - **Traefik** - Reverse proxy and SSL termination
+- **Nginx Gateway** - Landing page with links to all services
 - **Nextcloud** - File storage and collaboration platform
 - **Jenkins** - Continuous integration and deployment
+- **Bamboo** - Build and deployment server
 - **Confluence** - Team wiki and documentation
 - **Jira** - Project and issue tracking
 - **Bitbucket** - Git repository management
 - **Mattermost** - Team chat and communication
-- **PostgreSQL** - Database servers (4 instances)
+- **Mail Server** - Full-featured SMTP/IMAP email service
+- **PostgreSQL** - Database servers (5 instances)
 - **MariaDB** - MySQL-compatible database
 
 All services are accessible via `*.mystic.home` domain names through Traefik.
@@ -79,10 +82,13 @@ ls -lan /data/docker/
 | MariaDB | 999:999 | mysql |
 | Nextcloud | 33:33 | www-data |
 | Jenkins | 1000:1000 | jenkins |
+| Bamboo | 2005:2005 | bamboo |
 | Confluence | 2002:2002 | confluence |
 | Jira | 2001:2001 | jira |
 | Bitbucket | 2003:2003 | bitbucket |
 | Mattermost | 2000:2000 | mattermost |
+| Mail Server | 5000:5000 | mailserver |
+| Gateway (Nginx) | 101:101 | nginx |
 
 ### 3. Create Docker Network
 
@@ -118,13 +124,16 @@ Once running, services are available at:
 
 | Service | URL | Default Admin |
 |---------|-----|---------------|
+| Gateway | http://home.mystic.home | N/A |
 | Traefik Dashboard | http://your-server:8080 | N/A |
 | Nextcloud | http://cloud.mystic.home | mystic / password |
 | Jenkins | http://jenkins.mystic.home | See initial setup |
+| Bamboo | http://bamboo.mystic.home | Web setup required |
 | Confluence | http://confluence.mystic.home | Web setup required |
 | Jira | http://jira.mystic.home | Web setup required |
 | Bitbucket | http://bitbucket.mystic.home | Web setup required |
 | Mattermost | http://chat.mystic.home | Web setup required |
+| Mail Server | http://mail.mystic.home | CLI setup required |
 
 ## Project Structure
 
@@ -147,8 +156,12 @@ All persistent data is stored under `/data/docker/`:
 ```
 /data/docker/
 ├── traefik/          # Traefik config and certificates
+├── gateway/          # Gateway landing page
+│   ├── html/         # Static website files (from separate repo)
+│   └── nginx.conf    # Custom nginx configuration (optional)
 ├── nextcloud/        # Nextcloud files and data
 ├── jenkins/          # Jenkins jobs and configuration
+├── bamboo/           # Bamboo build plans and artifacts
 ├── confluence/       # Confluence pages and attachments
 ├── jira/            # Jira issues and projects
 ├── bitbucket/       # Git repositories
@@ -159,11 +172,17 @@ All persistent data is stored under `/data/docker/`:
 │   ├── plugins/
 │   ├── clientplugins/
 │   └── bleveindexes/
+├── mailserver/      # Mail server data
+│   ├── mail-data/   # Mailboxes and messages
+│   ├── mail-state/  # Server state
+│   ├── mail-logs/   # Mail logs
+│   └── config/      # Mail server configuration
 ├── mariadbone/      # MariaDB data (Nextcloud)
 ├── postgresdbone/   # PostgreSQL data (Confluence)
 ├── postgresdbtwo/   # PostgreSQL data (Jira)
 ├── postgresdbthree/ # PostgreSQL data (Bitbucket)
-└── postgresdbfour/  # PostgreSQL data (Mattermost)
+├── postgresdbfour/  # PostgreSQL data (Mattermost)
+└── postgresdbfive/  # PostgreSQL data (Bamboo)
 ```
 
 ## Management Commands
@@ -260,12 +279,16 @@ Create `/data/docker/traefik/traefik.toml`:
 Add these entries to your local DNS server or `/etc/hosts`:
 
 ```
+192.168.1.100  home.mystic.home
+192.168.1.100  mystic.home
 192.168.1.100  cloud.mystic.home
 192.168.1.100  jenkins.mystic.home
+192.168.1.100  bamboo.mystic.home
 192.168.1.100  confluence.mystic.home
 192.168.1.100  jira.mystic.home
 192.168.1.100  bitbucket.mystic.home
 192.168.1.100  chat.mystic.home
+192.168.1.100  mail.mystic.home
 ```
 
 Replace `192.168.1.100` with your server's IP address.

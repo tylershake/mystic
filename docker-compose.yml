@@ -14,14 +14,17 @@
 #
 # SERVICES:
 # - Traefik: Reverse proxy (ports 80, 443, 8080)
+# - Nginx Gateway: Landing page (home.mystic.home)
 # - Nextcloud: File storage (cloud.mystic.home)
 # - Jenkins: CI/CD (jenkins.mystic.home)
+# - Bamboo: Build server (bamboo.mystic.home)
 # - Confluence: Wiki/docs (confluence.mystic.home)
 # - Jira: Issue tracking (jira.mystic.home)
 # - Bitbucket: Git repos (bitbucket.mystic.home)
 # - Mattermost: Team chat (chat.mystic.home)
+# - Mail Server: SMTP/IMAP (mail.mystic.home)
 # - MariaDB: Database for Nextcloud
-# - PostgreSQL: 4 instances for other services
+# - PostgreSQL: 5 instances for other services
 #
 # Author: Developer Agent - Mystic Home Server
 # Version: 1.0
@@ -50,6 +53,32 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - web
+
+  #-----------------------------------------------------------------------------
+  # NGINX - Gateway Landing Page
+  #-----------------------------------------------------------------------------
+  # Serves the main landing page with links to all services
+  # Accessible at: http://home.mystic.home or http://mystic.home
+  # Static files: HTML/CSS/JS implementation from separate repository
+  #-----------------------------------------------------------------------------
+  gateway:
+    image: nginx:alpine
+    container_name: gateway
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gateway.rule=Host(`home.mystic.home`,`mystic.home`)"
+      - "traefik.http.services.gateway.loadbalancer.server.port=80"
+    expose:
+      - "80"
+    networks:
+      - web
+    volumes:
+      # Static website files (HTML/CSS/JS from separate repo)
+      # Place your gateway page implementation here
+      - /data/docker/gateway/html:/usr/share/nginx/html:ro
+      # Optional: Custom nginx configuration
+      - /data/docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
 
   #-----------------------------------------------------------------------------
   # NEXTCLOUD - File Storage & Collaboration
@@ -134,6 +163,58 @@ services:
     volumes:
       # Jenkins home directory (UID 1000:1000 required)
       - /data/docker/jenkins/:/var/jenkins_home
+
+  #-----------------------------------------------------------------------------
+  # BAMBOO - Build & Deployment Server
+  #-----------------------------------------------------------------------------
+  # Continuous integration and deployment server
+  # Accessible at: http://bamboo.mystic.home
+  # Database: PostgreSQL (postgresdbfive)
+  # Port 54663: Remote agent communication
+  # FIRST RUN: Configure database connection via web UI
+  #   Host: postgresdbfive, Port: 5432, Database: home
+  #   User: mystic, Password: password
+  #-----------------------------------------------------------------------------
+  bamboo:
+    image: atlassian/bamboo:latest
+    container_name: bamboo
+    restart: unless-stopped
+    depends_on:
+      - postgresdbfive
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bamboo.rule=Host(`bamboo.mystic.home`)"
+      - "traefik.http.services.bamboo.loadbalancer.server.port=8085"
+    expose:
+      - "8085"
+    ports:
+      - "54663:54663"  # Remote agent port
+    networks:
+      - web
+    volumes:
+      # Bamboo data directory (UID 2005:2005 required)
+      - /data/docker/bamboo/:/var/atlassian/application-data/bamboo
+
+  #-----------------------------------------------------------------------------
+  # POSTGRESQL Instance 5 - Database for Bamboo
+  #-----------------------------------------------------------------------------
+  # PostgreSQL database server
+  # Used by: Bamboo
+  # Database: home
+  #-----------------------------------------------------------------------------
+  postgresdbfive:
+    image: postgres:latest
+    container_name: postgresdbfive
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=mystic
+      - POSTGRES_PASSWORD=password  # TODO: Change this!
+      - POSTGRES_DB=home
+    networks:
+      - web
+    volumes:
+      # Database files (UID 999:999 required)
+      - /data/docker/postgresdbfive:/var/lib/postgresql/data
 
   #-----------------------------------------------------------------------------
   # CONFLUENCE - Team Wiki & Documentation
@@ -319,6 +400,72 @@ services:
       - POSTGRES_DB=mattermost
     networks:
       - web
+
+  #-----------------------------------------------------------------------------
+  # MAIL SERVER - SMTP/IMAP Email Service
+  #-----------------------------------------------------------------------------
+  # Full-featured mail server with SMTP, IMAP, and anti-spam
+  # Accessible at: https://mail.mystic.home (webmail via Roundcube/Rainloop)
+  # SMTP: Port 25, 587 (submission), 465 (submissions)
+  # IMAP: Port 993 (imaps)
+  # POP3: Port 995 (pop3s)
+  #
+  # FIRST RUN SETUP:
+  # 1. Configure DNS records (MX, SPF, DKIM, DMARC)
+  # 2. Set hostname: export HOSTNAME=mail.mystic.home
+  # 3. Create email accounts:
+  #    docker exec -it mailserver setup email add user@mystic.home password
+  # 4. Generate DKIM keys:
+  #    docker exec -it mailserver setup config dkim
+  #
+  # NOTE: For development/testing, consider using Mailpit instead
+  #       For production, proper DNS configuration is required
+  #-----------------------------------------------------------------------------
+  mailserver:
+    image: mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail.mystic.home
+    restart: unless-stopped
+    ports:
+      # SMTP ports
+      - "25:25"     # SMTP
+      - "587:587"   # Submission (STARTTLS)
+      - "465:465"   # Submissions (SSL/TLS)
+      # IMAP ports
+      - "993:993"   # IMAPS (SSL/TLS)
+      # POP3 port (optional)
+      - "995:995"   # POP3S (SSL/TLS)
+    labels:
+      - "traefik.enable=true"
+      # Webmail interface (requires additional webmail container)
+      - "traefik.http.routers.mail.rule=Host(`mail.mystic.home`)"
+      - "traefik.http.services.mail.loadbalancer.server.port=80"
+    networks:
+      - web
+    volumes:
+      # Mail data and configuration
+      - /data/docker/mailserver/mail-data:/var/mail:rw
+      - /data/docker/mailserver/mail-state:/var/mail-state:rw
+      - /data/docker/mailserver/mail-logs:/var/log/mail:rw
+      - /data/docker/mailserver/config:/tmp/docker-mailserver:rw
+      # SSL certificates (use Let's Encrypt certificates from Traefik)
+      # - /data/docker/traefik/acme:/etc/letsencrypt:ro
+    environment:
+      # Basic configuration
+      - ENABLE_SPAMASSASSIN=1
+      - ENABLE_CLAMAV=1
+      - ENABLE_FAIL2BAN=1
+      - ENABLE_POSTGREY=0
+      # SSL/TLS
+      - SSL_TYPE=self-signed  # Change to 'letsencrypt' for production
+      # Other settings
+      - ONE_DIR=1
+      - DMS_DEBUG=0
+      - PERMIT_DOCKER=network
+    cap_add:
+      - NET_ADMIN  # Required for Fail2Ban
+    security_opt:
+      - no-new-privileges:true
 
   #-----------------------------------------------------------------------------
   # MATTERMOST - Team Chat & Collaboration

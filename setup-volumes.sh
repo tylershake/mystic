@@ -35,10 +35,13 @@ declare -A SERVICE_UIDS=(
     ["mariadb"]=999          # MariaDB runs as mysql:mysql (999:999)
     ["nextcloud"]=33         # Nextcloud runs as www-data (33:33) on Debian
     ["jenkins"]=1000         # Jenkins runs as jenkins:jenkins (1000:1000)
+    ["bamboo"]=2005          # Bamboo runs as bamboo (2005:2005)
     ["confluence"]=2002      # Confluence runs as confluence (2002:2002)
     ["jira"]=2001            # Jira runs as jira (2001:2001)
     ["bitbucket"]=2003       # Bitbucket runs as bitbucket (2003:2003)
     ["mattermost"]=2000      # Mattermost runs as UID 2000
+    ["mailserver"]=5000      # Docker-mailserver runs as UID 5000
+    ["gateway"]=101          # Nginx (alpine) runs as nginx user (101:101)
     ["traefik"]=0            # Traefik runs as root (needs docker socket access)
 )
 
@@ -89,10 +92,13 @@ CONTAINER UIDs USED:
     MariaDB:        999:999
     Nextcloud:      33:33 (www-data)
     Jenkins:        1000:1000
+    Bamboo:         2005:2005
     Confluence:     2002:2002
     Jira:           2001:2001
     Bitbucket:      2003:2003
     Mattermost:     2000:2000
+    Mail Server:    5000:5000
+    Gateway:        101:101 (nginx)
     Traefik:        0:0 (root)
 
 EXAMPLES:
@@ -160,6 +166,9 @@ get_service_uid() {
         *jenkins*)
             echo "${SERVICE_UIDS[jenkins]}"
             ;;
+        *bamboo*)
+            echo "${SERVICE_UIDS[bamboo]}"
+            ;;
         *confluence*)
             echo "${SERVICE_UIDS[confluence]}"
             ;;
@@ -171,6 +180,12 @@ get_service_uid() {
             ;;
         *mattermost*)
             echo "${SERVICE_UIDS[mattermost]}"
+            ;;
+        *mailserver*|*mail*)
+            echo "${SERVICE_UIDS[mailserver]}"
+            ;;
+        *gateway*)
+            echo "${SERVICE_UIDS[gateway]}"
             ;;
         *traefik*)
             echo "${SERVICE_UIDS[traefik]}"
