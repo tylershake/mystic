@@ -395,6 +395,13 @@ main() {
     while IFS= read -r volume_path; do
         [[ -z "$volume_path" ]] && continue
 
+        # If the path looks like a file (has an extension), create only its
+        # parent directory. This prevents mkdir from creating files like
+        # traefik.toml or nginx.conf as directories.
+        if [[ "$volume_path" =~ \.[a-zA-Z0-9]+$ ]]; then
+            volume_path=$(dirname "$volume_path")
+        fi
+
         # Get the appropriate UID for this service
         uid=$(get_service_uid "$volume_path")
 
