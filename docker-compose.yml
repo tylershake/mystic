@@ -66,7 +66,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.gateway.rule=Host(`home.mystic.home`,`mystic.home`)"
+      - "traefik.http.routers.gateway.rule=Host(`home.mystic.home`) || Host(`mystic.home`)"
       - "traefik.http.services.gateway.loadbalancer.server.port=80"
     expose:
       - "80"
