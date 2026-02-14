@@ -1,18 +1,64 @@
+################################################################################
+# Mystic Home Server - Docker Compose Configuration
+#
+# This file defines the complete infrastructure for a self-hosted home server
+# including reverse proxy, file storage, CI/CD, project management, and
+# collaboration tools.
+#
+# BEFORE FIRST RUN:
+# 1. Run setup-volumes.sh to create directories with correct permissions
+# 2. Create external network: docker network create web
+# 3. Change all passwords from default "password" value
+# 4. Configure Traefik (create /data/docker/traefik/traefik.toml)
+# 5. Set up DNS for *.mystic.home domains
+#
+# SERVICES:
+# - Traefik: Reverse proxy (ports 80, 443, 8080)
+# - Nextcloud: File storage (cloud.mystic.home)
+# - Jenkins: CI/CD (jenkins.mystic.home)
+# - Confluence: Wiki/docs (confluence.mystic.home)
+# - Jira: Issue tracking (jira.mystic.home)
+# - Bitbucket: Git repos (bitbucket.mystic.home)
+# - Mattermost: Team chat (chat.mystic.home)
+# - MariaDB: Database for Nextcloud
+# - PostgreSQL: 4 instances for other services
+#
+# Author: Developer Agent - Mystic Home Server
+# Version: 1.0
+################################################################################
+
 services:
+  #-----------------------------------------------------------------------------
+  # TRAEFIK - Reverse Proxy & SSL Termination
+  #-----------------------------------------------------------------------------
+  # Routes all HTTP/HTTPS traffic to appropriate services
+  # Provides automatic service discovery via Docker labels
+  # Dashboard available on port 8080 (WARNING: unsecured by default)
+  #-----------------------------------------------------------------------------
   traefik:
     image: traefik:latest
     container_name: traefik
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"
+      - "80:80"       # HTTP entry point
+      - "443:443"     # HTTPS entry point
+      - "8080:8080"   # Dashboard (WARNING: publicly accessible without auth)
     volumes:
+      # Main configuration file (must be created before starting)
       - /data/docker/traefik/traefik.toml:/traefik.toml
+      # Docker socket access for automatic service discovery
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - web
 
+  #-----------------------------------------------------------------------------
+  # NEXTCLOUD - File Storage & Collaboration
+  #-----------------------------------------------------------------------------
+  # Self-hosted file sync and share platform
+  # Accessible at: http://cloud.mystic.home
+  # Database: MariaDB (mariadbone)
+  # Default admin: mystic / password (CHANGE THIS!)
+  #-----------------------------------------------------------------------------
   nextcloud:
     image: nextcloud:latest
     container_name: nextcloud
@@ -28,30 +74,49 @@ services:
     networks:
       - web
     environment:
+      # Initial admin account (created on first run)
       - NEXTCLOUD_ADMIN_USER=mystic
-      - NEXTCLOUD_ADMIN_PASSWORD=password
+      - NEXTCLOUD_ADMIN_PASSWORD=password  # TODO: Change this!
       - NEXTCLOUD_TRUSTED_DOMAINS=cloud.mystic.home
+      # Database connection settings
       - MYSQL_DATABASE=home
       - MYSQL_USER=mystic
-      - MYSQL_PASSWORD=password
+      - MYSQL_PASSWORD=password  # TODO: Change this!
       - MYSQL_HOST=mariadbone
     volumes:
+      # Nextcloud data and config (UID 33:33 required)
       - /data/docker/nextcloud:/var/www/html
 
+  #-----------------------------------------------------------------------------
+  # MARIADB - Database for Nextcloud
+  #-----------------------------------------------------------------------------
+  # MySQL-compatible database server
+  # Used by: Nextcloud
+  # Database: home
+  #-----------------------------------------------------------------------------
   mariadbone:
     image: mariadb:latest
     container_name: mariadbone
     restart: unless-stopped
     environment:
       - MYSQL_USER=mystic
-      - MYSQL_PASSWORD=password
+      - MYSQL_PASSWORD=password        # TODO: Change this!
       - MYSQL_DATABASE=home
-      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_ROOT_PASSWORD=password   # TODO: Change this!
     networks:
       - web
     volumes:
+      # Database files (UID 999:999 required)
       - /data/docker/mariadbone:/var/lib/mysql
 
+  #-----------------------------------------------------------------------------
+  # JENKINS - Continuous Integration & Deployment
+  #-----------------------------------------------------------------------------
+  # Automation server for CI/CD pipelines
+  # Accessible at: http://jenkins.mystic.home
+  # Port 50000: Agent communication (required for build agents)
+  # Initial admin password: check /var/jenkins_home/secrets/initialAdminPassword
+  #-----------------------------------------------------------------------------
   jenkins:
     image: jenkins/jenkins:latest
     container_name: jenkins
@@ -63,12 +128,24 @@ services:
     expose:
       - "8080"
     ports:
-      - "50000:50000"
+      - "50000:50000"  # JNLP agent port
     networks:
       - web
     volumes:
+      # Jenkins home directory (UID 1000:1000 required)
       - /data/docker/jenkins/:/var/jenkins_home
 
+  #-----------------------------------------------------------------------------
+  # CONFLUENCE - Team Wiki & Documentation
+  #-----------------------------------------------------------------------------
+  # Collaborative workspace for documentation
+  # Accessible at: http://confluence.mystic.home
+  # Database: PostgreSQL (postgresdbone)
+  # Port 8091: Synchrony (collaborative editing)
+  # FIRST RUN: Configure database connection via web UI
+  #   Host: postgresdbone, Port: 5432, Database: home
+  #   User: mystic, Password: password
+  #-----------------------------------------------------------------------------
   confluence:
     image: atlassian/confluence:latest
     container_name: confluence
@@ -82,25 +159,44 @@ services:
     expose:
       - "8090"
     ports:
-      - "8091:8091"
+      - "8091:8091"  # Synchrony collaborative editing
     networks:
       - web
     volumes:
+      # Confluence data directory (UID 2002:2002 required)
       - /data/docker/confluence/:/var/atlassian/application-data/confluence
 
+  #-----------------------------------------------------------------------------
+  # POSTGRESQL Instance 1 - Database for Confluence
+  #-----------------------------------------------------------------------------
+  # PostgreSQL database server
+  # Used by: Confluence
+  # Database: home
+  #-----------------------------------------------------------------------------
   postgresdbone:
     image: postgres:latest
     container_name: postgresdbone
     restart: unless-stopped
     environment:
       - POSTGRES_USER=mystic
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=password  # TODO: Change this!
       - POSTGRES_DB=home
     networks:
       - web
     volumes:
+      # Database files (UID 999:999 required)
       - /data/docker/postgresdbone:/var/lib/postgresql/data
 
+  #-----------------------------------------------------------------------------
+  # JIRA - Project & Issue Tracking
+  #-----------------------------------------------------------------------------
+  # Agile project management and issue tracking
+  # Accessible at: http://jira.mystic.home
+  # Database: PostgreSQL (postgresdbtwo)
+  # FIRST RUN: Configure database connection via web UI
+  #   Host: postgresdbtwo, Port: 5432, Database: home
+  #   User: mystic, Password: password
+  #-----------------------------------------------------------------------------
   jira:
     image: atlassian/jira-software:latest
     container_name: jira
@@ -116,21 +212,41 @@ services:
     networks:
       - web
     volumes:
+      # Jira data directory (UID 2001:2001 required)
       - /data/docker/jira/:/var/atlassian/application-data/jira
 
+  #-----------------------------------------------------------------------------
+  # POSTGRESQL Instance 2 - Database for Jira
+  #-----------------------------------------------------------------------------
+  # PostgreSQL database server
+  # Used by: Jira
+  # Database: home
+  #-----------------------------------------------------------------------------
   postgresdbtwo:
     image: postgres:latest
     container_name: postgresdbtwo
     restart: unless-stopped
     environment:
       - POSTGRES_USER=mystic
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=password  # TODO: Change this!
       - POSTGRES_DB=home
     networks:
       - web
     volumes:
+      # Database files (UID 999:999 required)
       - /data/docker/postgresdbtwo:/var/lib/postgresql/data
 
+  #-----------------------------------------------------------------------------
+  # BITBUCKET - Git Repository Management
+  #-----------------------------------------------------------------------------
+  # Self-hosted Git repository manager
+  # Accessible at: http://bitbucket.mystic.home
+  # Database: PostgreSQL (postgresdbthree)
+  # Port 7999: SSH access for Git operations
+  # FIRST RUN: Configure database connection via web UI
+  #   Host: postgresdbthree, Port: 5432, Database: home
+  #   User: mystic, Password: password
+  #-----------------------------------------------------------------------------
   bitbucket:
     image: atlassian/bitbucket:latest
     container_name: bitbucket
@@ -144,96 +260,130 @@ services:
     expose:
       - "7990"
     ports:
-      - "7999:7999"
+      - "7999:7999"  # SSH port for Git operations
     networks:
       - web
     volumes:
+      # Bitbucket data directory (UID 2003:2003 required)
       - /data/docker/bitbucket/:/var/atlassian/application-data/bitbucket
 
+  #-----------------------------------------------------------------------------
+  # POSTGRESQL Instance 3 - Database for Bitbucket
+  #-----------------------------------------------------------------------------
+  # PostgreSQL database server
+  # Used by: Bitbucket
+  # Database: home
+  #-----------------------------------------------------------------------------
   postgresdbthree:
     image: postgres:latest
     container_name: postgresdbthree
     restart: unless-stopped
     environment:
       - POSTGRES_USER=mystic
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=password  # TODO: Change this!
       - POSTGRES_DB=home
     networks:
       - web
     volumes:
+      # Database files (UID 999:999 required)
       - /data/docker/postgresdbthree:/var/lib/postgresql/data
 
+  #-----------------------------------------------------------------------------
+  # POSTGRESQL Instance 4 - Database for Mattermost (Hardened)
+  #-----------------------------------------------------------------------------
+  # PostgreSQL database server with enhanced security
+  # Used by: Mattermost
+  # Database: mattermost
+  # Security: read-only filesystem, no new privileges, limited PIDs
+  #-----------------------------------------------------------------------------
   postgresdbfour:
     image: postgres:latest
     container_name: postgresdbfour
     restart: unless-stopped
+    # Enhanced security settings
     security_opt:
-      - no-new-privileges:true
-    pids_limit: 100
-    read_only: true
+      - no-new-privileges:true  # Prevent privilege escalation
+    pids_limit: 100             # Limit number of processes
+    read_only: true             # Read-only root filesystem
     tmpfs:
+      # Writable temp directories (required for PostgreSQL)
       - /tmp
       - /var/run/postgresql
     volumes:
+      # Database files (UID 999:999 required)
       - /data/docker/postgresdbfour:/var/lib/postgresql/data
     environment:
-      # timezone inside container
       - TZ=UTC
-
-      # necessary Postgres options/variables
       - POSTGRES_USER=mystic
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=password  # TODO: Change this!
       - POSTGRES_DB=mattermost
     networks:
       - web
 
+  #-----------------------------------------------------------------------------
+  # MATTERMOST - Team Chat & Collaboration
+  #-----------------------------------------------------------------------------
+  # Open-source team communication platform
+  # Accessible at: http://chat.mystic.home
+  # Database: PostgreSQL (postgresdbfour)
+  # NOTE: Only service configured for HTTPS (websecure entrypoint)
+  #       Other services should be updated similarly for production use
+  #-----------------------------------------------------------------------------
   mattermost:
     depends_on:
       - postgresdbfour
     image: mattermost/mattermost-enterprise-edition:latest
     restart: unless-stopped
+    # Security settings
     security_opt:
       - no-new-privileges:true
     pids_limit: 200
-    read_only: false
+    read_only: false  # Mattermost needs write access
     expose:
       - "8065"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mattermost.rule=Host(`chat.mystic.home`)"
-      - "traefik.http.routers.mattermost.entrypoints=websecure"
+      - "traefik.http.routers.mattermost.entrypoints=websecure"  # HTTPS
       - "traefik.http.routers.mattermost.tls=true"
       - "traefik.http.routers.mattermost.tls.certresolver=default"
       - "traefik.http.services.mattermost.loadbalancer.server.port=8065"
     tmpfs:
       - /tmp
     volumes:
+      # All Mattermost data directories (UID 2000:2000 required)
       - /data/docker/mattermost/config:/mattermost/config:rw
       - /data/docker/mattermost/data:/mattermost/data:rw
       - /data/docker/mattermost/logs:/mattermost/logs:rw
       - /data/docker/mattermost/plugins:/mattermost/plugins:rw
       - /data/docker/mattermost/clientplugins:/mattermost/client/plugins:rw
       - /data/docker/mattermost/bleveindexes:/mattermost/bleve-indexes:rw
-      # When you want to use SSO with GitLab, you have to add the cert pki chain of GitLab inside Alpine
-      # to avoid Token request failed: certificate signed by unknown authority
-      # (link: https://github.com/mattermost/mattermost-server/issues/13059 and https://github.com/mattermost/docker/issues/34)
+      # Optional: GitLab SSO certificate chain
+      # Uncomment and set path if using GitLab SSO
       # - ${GITLAB_PKI_CHAIN_PATH}:/etc/ssl/certs/pki_chain.pem:ro
     environment:
-      # timezone inside container
       - TZ=UTC
-
-      # necessary Mattermost options/variables (see env.example)
+      # Database connection
       - MM_SQLSETTINGS_DRIVERNAME=postgres
       - MM_SQLSETTINGS_DATASOURCE=postgres://mystic:password@postgresdbfour:5432/mattermost?sslmode=disable&connect_timeout=10
-
-      # necessary for bleve
+      # Search index location
       - MM_BLEVESETTINGS_INDEXDIR=/mattermost/bleve-indexes
-
-      # additional settings
+      # Site URL (update for production)
       - MM_SERVICESETTINGS_SITEURL=http://chat.mystic.home
     networks:
       - web
 
+################################################################################
+# NETWORKS
+################################################################################
+# External network "web" must be created before starting services:
+#   docker network create web
+#
+# All services connect to this shared network for:
+# - Inter-service communication
+# - Traefik service discovery
+# - DNS resolution between containers
+################################################################################
 networks:
   web:
     external: true
