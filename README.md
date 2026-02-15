@@ -443,11 +443,12 @@ Also note: changing PostgreSQL major versions on existing data requires a migrat
 
 **Note**: Confluence, Jira, Bitbucket, and Bamboo require manual database configuration during first-time setup:
 
-- **Host**: `postgresdbone` (Confluence), `postgresdbtwo` (Jira), `postgresdbthree` (Bitbucket)
+- **Host**: `postgresdbone` (Confluence), `postgresdbtwo` (Jira), `postgresdbthree` (Bitbucket), `postgresdbfive` (Bamboo)
 - **Database**: `home`
 - **Username**: `mystic`
 - **Password**: `password` (change this!)
 - **Port**: `5432`
+- **JDBC URL format**: `jdbc:postgresql://<host>:5432/home`
 
 ## AI Agents
 
