@@ -157,8 +157,12 @@ mystic_home_server/
 │       └── pipeline/
 │           └── logstash.conf   # Default Logstash pipeline config
 ├── docker-compose.yml          # Main service definitions
-├── setup-volumes.sh           # Volume directory creation script
-└── README.md                  # This file
+├── setup-volumes.sh            # Volume directory creation script
+├── save-images.sh              # Save Docker images to .tar files (online)
+├── load-images.sh              # Load Docker images from .tar files (offline)
+├── export-volumes.sh           # Archive configured volumes (online)
+├── import-volumes.sh           # Restore volume archives (offline)
+└── README.md                   # This file
 ```
 
 ## Data Storage
@@ -600,6 +604,104 @@ docker compose logs jenkins | grep -i "plugin"
 ```
 
 > **Note**: Manual installation can be tedious for plugins with deep dependency trees (e.g., Pipeline requires 20+ transitive dependencies). Approach 1 avoids this problem entirely.
+
+## Offline / Air-Gapped Deployment
+
+### Overview
+
+This project includes scripts to package Docker images and configured volumes for transfer to offline or air-gapped systems. The typical workflow is to set up and configure services on a machine with internet access, then export everything to portable media (USB drive, external HDD, etc.) for deployment on the isolated target machine.
+
+### Workflow
+
+1. **On the online machine** — pull all Docker images and configure services as needed:
+
+   ```bash
+   docker compose pull
+   docker compose up -d
+   # Configure Jenkins plugins, pull Ollama models, set up Kibana dashboards, etc.
+   ```
+
+2. **Export images and volumes** from the online machine:
+
+   ```bash
+   ./save-images.sh /mnt/usb/docker-images
+   sudo ./export-volumes.sh --all --force /mnt/usb/volume-exports
+   ```
+
+3. **Transfer to portable media** — copy the `docker-images/` and `volume-exports/` directories (along with the project repository) to a USB drive or external disk.
+
+4. **On the offline machine** — load images, set up volumes, and start services:
+
+   ```bash
+   # Load Docker images
+   ./load-images.sh /mnt/usb/docker-images
+
+   # Create volume directories with correct permissions
+   sudo ./setup-volumes.sh
+
+   # Import pre-configured volumes (overwrites empty directories from setup)
+   sudo ./import-volumes.sh /mnt/usb/volume-exports
+
+   # Create the external network and start services
+   docker network create web
+   docker compose up -d
+   ```
+
+### Scripts Reference
+
+| Script | Purpose |
+|--------|---------|
+| `save-images.sh` | Save all Docker images from `docker-compose.yml` to `.tar` files |
+| `load-images.sh` | Load Docker images from `.tar` files into the local daemon |
+| `export-volumes.sh` | Archive configured volume directories as `.tar.gz` files (preserves ownership) |
+| `import-volumes.sh` | Restore volume archives into `/data/docker` (preserves ownership) |
+
+**Common usage examples:**
+
+```bash
+# Preview what save-images would do
+./save-images.sh --dry-run
+
+# Save images to a custom directory
+./save-images.sh /mnt/usb/docker-images
+
+# Save only a specific image (filter by name)
+./save-images.sh --filter jenkins
+
+# Load images from a custom directory
+./load-images.sh /mnt/usb/docker-images
+
+# Load only a specific image
+./load-images.sh --filter jenkins
+
+# Export only specific service volumes
+sudo ./export-volumes.sh --services jenkins,ollama,kibana
+
+# Export all volumes, skipping confirmation prompts
+sudo ./export-volumes.sh --all --force /mnt/usb/volume-exports
+
+# Import volumes from USB to default /data/docker
+sudo ./import-volumes.sh /mnt/usb/volume-exports
+
+# Import only a specific volume
+sudo ./import-volumes.sh --filter jenkins
+
+# Import volumes to a custom root directory
+sudo ./import-volumes.sh -r /mnt/storage/docker /mnt/usb/volume-exports
+```
+
+All four scripts support `--dry-run` to preview actions without making changes and `--help` for full usage details.
+
+### What to Export
+
+Not all volumes need to be pre-configured online before export. The most useful ones to set up ahead of time are:
+
+- **`jenkins`** — Install plugins and configure jobs online so they are ready to use offline. Plugin installation requires internet access, so this avoids manual `.hpi` dependency resolution on the air-gapped machine.
+- **`ollama`** — Pull LLM models online (`docker exec ollama ollama pull llama3.2`). Models are large (several GB each) and cannot be downloaded offline.
+- **`kibana`** — Create data views, saved searches, and dashboards online so the monitoring interface is ready on first boot.
+- **Database volumes** (`mariadbone`, `postgresdbone`, etc.) — Export these if you have pre-seeded data, configured schemas, or completed first-time setup wizards for Atlassian products (Confluence, Jira, Bitbucket, Bamboo).
+
+Volumes like `traefik`, `gateway`, and `logstash` contain mostly static configuration and are usually fine to set up fresh via `setup-volumes.sh`.
 
 ## Security Considerations
 
