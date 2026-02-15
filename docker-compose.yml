@@ -584,7 +584,7 @@ services:
   # Part of the ELK stack (Elasticsearch, Logstash, Kibana)
   #-----------------------------------------------------------------------------
   elasticsearch:
-    image: elasticsearch:latest
+    image: elasticsearch:9.3.0
     container_name: elasticsearch
     restart: unless-stopped
     labels:
@@ -608,7 +608,7 @@ services:
   # Part of the ELK stack (Elasticsearch, Logstash, Kibana)
   #-----------------------------------------------------------------------------
   logstash:
-    image: logstash:latest
+    image: logstash:9.3.0
     container_name: logstash
     restart: unless-stopped
     depends_on:
@@ -637,7 +637,7 @@ services:
   # Part of the ELK stack (Elasticsearch, Logstash, Kibana)
   #-----------------------------------------------------------------------------
   kibana:
-    image: kibana:latest
+    image: kibana:9.3.0
     container_name: kibana
     restart: unless-stopped
     depends_on:
