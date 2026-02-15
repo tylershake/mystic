@@ -358,6 +358,72 @@ docker exec -it mailserver setup alias add alias@mystic.home user@mystic.home
 docker compose restart mailserver
 ```
 
+### Jenkins Plugin Installation
+
+Jenkins requires plugins for most functionality (Git integration, pipelines, credentials management, etc.). Since this server may run in an offline (air-gapped) environment, there are two approaches to installing plugins.
+
+#### Approach 1: Online-to-Offline Migration (Recommended)
+
+Set up Jenkins on a machine with internet access first, install all desired plugins through the UI, then transfer the entire volume to your offline server.
+
+1. **Start Jenkins with internet access** and complete initial setup at `http://jenkins.mystic.home`.
+2. **Install plugins** via **Manage Jenkins > Plugins > Available plugins**. Common picks:
+
+   | Plugin | Purpose |
+   |--------|---------|
+   | Git | Git SCM integration |
+   | Pipeline | Jenkinsfile-based pipelines |
+   | Blue Ocean | Modern pipeline UI |
+   | Credentials Binding | Inject secrets into builds |
+   | Docker Pipeline | Build inside Docker containers |
+   | SSH Agent | SSH key authentication in builds |
+
+3. **Verify** all plugins load without errors (**Manage Jenkins > Plugins > Installed plugins**).
+4. **Stop Jenkins and copy the volume** to your offline server:
+
+```bash
+# On the online machine — archive the Jenkins volume
+docker compose stop jenkins
+sudo tar -czf jenkins-volume.tar.gz /data/docker/jenkins/
+
+# Transfer to offline server (USB drive, scp, etc.)
+scp jenkins-volume.tar.gz user@offline-server:/tmp/
+
+# On the offline server — restore
+docker compose stop jenkins
+sudo tar -xzf /tmp/jenkins-volume.tar.gz -C /
+sudo chown -R 1000:1000 /data/docker/jenkins/
+docker compose start jenkins
+```
+
+#### Approach 2: Manual Plugin Installation
+
+Download individual plugin files and place them directly into the plugins directory. This is useful when you only need a few specific plugins.
+
+1. **Download `.hpi`/`.jpi` files** from the Jenkins Plugin Index on a machine with internet access:
+
+   ```
+   https://updates.jenkins.io/download/plugins/<plugin-name>/
+   ```
+
+2. **Resolve dependencies** — each plugin page lists its required dependencies. Download those as well. Missing dependencies will cause Jenkins to fail to load the plugin.
+
+3. **Copy plugin files** into the Jenkins plugins directory:
+
+```bash
+# Copy downloaded plugins to the volume
+sudo cp *.hpi /data/docker/jenkins/plugins/
+sudo chown 1000:1000 /data/docker/jenkins/plugins/*.hpi
+
+# Restart Jenkins to load new plugins
+docker compose restart jenkins
+
+# Verify plugins loaded
+docker compose logs jenkins | grep -i "plugin"
+```
+
+> **Note**: Manual installation can be tedious for plugins with deep dependency trees (e.g., Pipeline requires 20+ transitive dependencies). Approach 1 avoids this problem entirely.
+
 ## Security Considerations
 
 ### Critical Security Tasks
