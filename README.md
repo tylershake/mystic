@@ -301,6 +301,8 @@ The mail server uses [docker-mailserver](https://docker-mailserver.github.io/doc
 
 #### First-Time Setup
 
+> **Note**: The mail server takes a minute or two to fully initialize on first start. Watch the logs with `docker compose logs -f mailserver` and wait until you see `is up and running` before running setup commands. Running them too early will fail.
+
 ```bash
 # Create your first email account
 docker exec -it mailserver setup email add user@mystic.home yourpassword
@@ -328,19 +330,25 @@ For the mail server to work properly, configure these DNS records:
 
 | Protocol | Server | Port | Security |
 |----------|--------|------|----------|
-| IMAP | mail.mystic.home | 993 | SSL/TLS |
-| POP3 | mail.mystic.home | 995 | SSL/TLS |
-| SMTP (sending) | mail.mystic.home | 587 | STARTTLS |
+| IMAP | mail.mystic.home | 143 | None (plaintext) |
+| SMTP (sending) | mail.mystic.home | 587 | None (plaintext) |
+
+> **When SSL is enabled**, switch your client to the encrypted ports: IMAP on 993 (SSL/TLS), SMTP on 465 (SSL/TLS), and POP3 on 995 (SSL/TLS). These ports are commented out in `docker-compose.yml` until SSL is configured.
 
 #### SSL Certificates
 
-The mail server defaults to self-signed certificates (`SSL_TYPE=self-signed`). For production, update the `SSL_TYPE` environment variable in `docker-compose.yml` and mount your certificates.
+SSL is **disabled by default** (`SSL_TYPE=` empty) so the mail server can start cleanly for testing without certificates. To enable SSL for production:
+
+1. Set `SSL_TYPE` in `docker-compose.yml` (e.g., `SSL_TYPE=letsencrypt` or `SSL_TYPE=manual`).
+2. Mount your certificate files into the container (see [docker-mailserver SSL docs](https://docker-mailserver.github.io/docker-mailserver/latest/config/security/ssl/)).
+3. Uncomment the encrypted ports (465, 993, 995) in the `ports` section of `docker-compose.yml`.
+4. Restart the mail server: `docker compose restart mailserver`.
 
 #### Enabled Features
 
 - **SpamAssassin** — spam filtering
-- **ClamAV** — antivirus scanning (uses significant memory ~1GB)
-- **Fail2Ban** — brute-force protection (requires NET_ADMIN capability)
+- **ClamAV** — **disabled by default** (`ENABLE_CLAMAV=0`). Uses ~1GB RAM and can cause OOM crashes on memory-constrained hosts. Set to `1` in `docker-compose.yml` to enable.
+- **Fail2Ban** — **disabled by default** (`ENABLE_FAIL2BAN=0`). Conflicts with the container's `no-new-privileges` security setting. Set to `1` and add `cap_add: NET_ADMIN` to enable.
 
 #### Useful Commands
 

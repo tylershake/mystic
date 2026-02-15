@@ -423,17 +423,19 @@ services:
   mailserver:
     image: mailserver/docker-mailserver:latest
     container_name: mailserver
-    hostname: mail.mystic.home
+    hostname: mail
+    domainname: mystic.home
     restart: unless-stopped
     ports:
       # SMTP ports
       - "25:25"     # SMTP
-      - "587:587"   # Submission (STARTTLS)
-      - "465:465"   # Submissions (SSL/TLS)
-      # IMAP ports
-      - "993:993"   # IMAPS (SSL/TLS)
-      # POP3 port (optional)
-      - "995:995"   # POP3S (SSL/TLS)
+      - "587:587"   # Submission
+      # IMAP port (unencrypted — SSL is disabled)
+      - "143:143"   # IMAP
+      # Uncomment these when SSL_TYPE is configured:
+      # - "465:465"   # SMTPS (SSL/TLS)
+      # - "993:993"   # IMAPS (SSL/TLS)
+      # - "995:995"   # POP3S (SSL/TLS)
     labels:
       # Mail traffic uses dedicated ports (25, 465, 587, 993, 995), not Traefik
       - "traefik.enable=false"
@@ -450,11 +452,11 @@ services:
     environment:
       # Basic configuration
       - ENABLE_SPAMASSASSIN=1
-      - ENABLE_CLAMAV=1
-      - ENABLE_FAIL2BAN=1
+      - ENABLE_CLAMAV=0       # Disabled — requires ~1GB RAM, causes OOM crashes
+      - ENABLE_FAIL2BAN=0     # Disabled — conflicts with no-new-privileges
       - ENABLE_POSTGREY=0
       # SSL/TLS
-      - SSL_TYPE=self-signed  # Change to 'letsencrypt' for production
+      - SSL_TYPE=             # Disabled for testing; use 'letsencrypt' for production
       # Other settings
       - ONE_DIR=1
       - DMS_DEBUG=0
