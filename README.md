@@ -106,7 +106,7 @@ docker network create web
 Before starting, you may want to:
 
 - **Change default passwords** in `docker-compose.yml` (currently all set to `password`)
-- **Configure Traefik** - Create `/data/docker/traefik/traefik.toml`
+- **Configure Traefik** - The setup script copies `config/traefik.toml` automatically; edit it if needed
 - **Set up DNS** - Configure `*.mystic.home` to point to your server IP
 
 ### 5. Start Services
