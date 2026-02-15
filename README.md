@@ -426,9 +426,22 @@ docker compose logs traefik | grep -i route
 docker network inspect web
 ```
 
+### PostgreSQL Version Compatibility
+
+Atlassian products (Confluence, Jira, Bitbucket, Bamboo) only support specific PostgreSQL versions. Before changing the `postgres` image tag in `docker-compose.yml`, check the compatibility matrix for each service:
+
+- [Confluence supported platforms](https://confluence.atlassian.com/doc/supported-platforms-702702702.html)
+- [Jira supported platforms](https://confluence.atlassian.com/adminjiraserver/supported-platforms-702702700.html)
+- [Bitbucket supported platforms](https://confluence.atlassian.com/bitbucketserver/supported-platforms-702702702.html)
+- [Bamboo supported platforms](https://confluence.atlassian.com/bamboo/supported-platforms-702702702.html)
+
+Using an unsupported version (e.g., too new or too old) can cause connection failures, schema errors, or silent data issues during setup. If you hit database errors during first-time setup, check the version compatibility first.
+
+Also note: changing PostgreSQL major versions on existing data requires a migration — you can't just swap the image tag. Wipe the data directory or use `pg_upgrade` if switching versions.
+
 ### Database Connection Errors
 
-**Note**: Confluence, Jira, and Bitbucket require manual database configuration during first-time setup:
+**Note**: Confluence, Jira, Bitbucket, and Bamboo require manual database configuration during first-time setup:
 
 - **Host**: `postgresdbone` (Confluence), `postgresdbtwo` (Jira), `postgresdbthree` (Bitbucket)
 - **Database**: `home`
