@@ -333,6 +333,8 @@ For the mail server to work properly, configure these DNS records:
 | IMAP | mail.mystic.home | 143 | None (plaintext) |
 | SMTP (sending) | mail.mystic.home | 587 | None (plaintext) |
 
+> **Recommended client**: Use [Thunderbird](https://www.thunderbird.net/) for plaintext (non-SSL) connections. Outlook may refuse to connect without encryption even when configured to allow it.
+
 > **When SSL is enabled**, switch your client to the encrypted ports: IMAP on 993 (SSL/TLS), SMTP on 465 (SSL/TLS), and POP3 on 995 (SSL/TLS). These ports are commented out in `docker-compose.yml` until SSL is configured.
 
 #### SSL Certificates
