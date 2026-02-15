@@ -25,6 +25,9 @@
 # - Mail Server: SMTP/IMAP (mail.mystic.home)
 # - Ollama: Local LLM inference (API only)
 # - Open WebUI: AI chat interface (ai.mystic.home)
+# - Elasticsearch: Search & analytics engine (API only)
+# - Logstash: Log ingestion pipeline (API only)
+# - Kibana: Log visualization (kibana.mystic.home)
 # - MariaDB: Database for Nextcloud
 # - PostgreSQL: 5 instances for other services
 #
@@ -572,6 +575,85 @@ services:
     volumes:
       # Open WebUI data directory (UID 0:0 — runs as root)
       - /data/docker/openwebui:/app/backend/data
+
+  #-----------------------------------------------------------------------------
+  # ELASTICSEARCH - Search & Analytics Engine
+  #-----------------------------------------------------------------------------
+  # Distributed search and analytics engine for centralized logging
+  # API only — not web-facing (accessed by Kibana and Logstash internally)
+  # Part of the ELK stack (Elasticsearch, Logstash, Kibana)
+  #-----------------------------------------------------------------------------
+  elasticsearch:
+    image: elasticsearch:latest
+    container_name: elasticsearch
+    restart: unless-stopped
+    labels:
+      # API-only service — not routed through Traefik
+      - "traefik.enable=false"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    networks:
+      - web
+    volumes:
+      # Elasticsearch data directory (UID 1000:1000 required)
+      - /data/docker/elasticsearch/data:/usr/share/elasticsearch/data
+
+  #-----------------------------------------------------------------------------
+  # LOGSTASH - Log Ingestion Pipeline
+  #-----------------------------------------------------------------------------
+  # Server-side data processing pipeline for log ingestion
+  # Receives logs via Beats (5044), TCP (5010), and exposes monitoring (9600)
+  # Part of the ELK stack (Elasticsearch, Logstash, Kibana)
+  #-----------------------------------------------------------------------------
+  logstash:
+    image: logstash:latest
+    container_name: logstash
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    labels:
+      # Not web-facing — uses dedicated ports for log ingestion
+      - "traefik.enable=false"
+    ports:
+      - "5044:5044"       # Beats input
+      - "5010:5010/tcp"   # Custom TCP input
+      - "9600:9600"       # Monitoring API
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+    networks:
+      - web
+    volumes:
+      # Logstash pipeline configuration (UID 1000:1000 required)
+      - /data/docker/logstash/pipeline:/usr/share/logstash/pipeline:ro
+
+  #-----------------------------------------------------------------------------
+  # KIBANA - Log Visualization & Dashboards
+  #-----------------------------------------------------------------------------
+  # Web-based visualization platform for Elasticsearch data
+  # Accessible at: http://kibana.mystic.home
+  # Backend: Elasticsearch (elasticsearch:9200)
+  # Part of the ELK stack (Elasticsearch, Logstash, Kibana)
+  #-----------------------------------------------------------------------------
+  kibana:
+    image: kibana:latest
+    container_name: kibana
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kibana.rule=Host(`kibana.mystic.home`)"
+      - "traefik.http.routers.kibana.entrypoints=web"
+      - "traefik.http.services.kibana.loadbalancer.server.port=5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - web
+    volumes:
+      # Kibana saved objects, dashboards, and settings (UID 1000:1000 required)
+      - /data/docker/kibana:/usr/share/kibana/data
 
 ################################################################################
 # NETWORKS

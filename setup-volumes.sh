@@ -45,6 +45,9 @@ declare -A SERVICE_UIDS=(
     ["traefik"]=0            # Traefik runs as root (needs docker socket access)
     ["ollama"]=0             # Ollama runs as root (0:0)
     ["openwebui"]=0          # Open WebUI runs as root (0:0)
+    ["elasticsearch"]=1000   # Elasticsearch runs as elasticsearch user (1000:1000)
+    ["logstash"]=1000        # Logstash runs as logstash user (1000:1000)
+    ["kibana"]=1000          # Kibana runs as kibana user (1000:1000)
 )
 
 ################################################################################
@@ -104,6 +107,9 @@ CONTAINER UIDs USED:
     Traefik:        0:0 (root)
     Ollama:         0:0 (root)
     Open WebUI:     0:0 (root)
+    Elasticsearch:  1000:1000
+    Logstash:       1000:1000
+    Kibana:         1000:1000
 
 EXAMPLES:
     # Dry run to see what will be created
@@ -199,6 +205,15 @@ get_service_uid() {
             ;;
         *openwebui*)
             echo "${SERVICE_UIDS[openwebui]}"
+            ;;
+        *elasticsearch*)
+            echo "${SERVICE_UIDS[elasticsearch]}"
+            ;;
+        *logstash*)
+            echo "${SERVICE_UIDS[logstash]}"
+            ;;
+        *kibana*)
+            echo "${SERVICE_UIDS[kibana]}"
             ;;
         *)
             # Default to root for unknown services
@@ -438,6 +453,21 @@ main() {
         fi
     else
         print_warning "config/traefik.toml not found in repo — skipping"
+    fi
+
+    if [[ -f "$SCRIPT_DIR/config/logstash/pipeline/logstash.conf" ]]; then
+        if [[ "$DRY_RUN" == true ]]; then
+            print_info "[DRY RUN] Would copy: config/logstash/pipeline/logstash.conf → $root_path/logstash/pipeline/logstash.conf"
+        else
+            mkdir -p "$root_path/logstash/pipeline"
+            cp "$SCRIPT_DIR/config/logstash/pipeline/logstash.conf" "$root_path/logstash/pipeline/logstash.conf"
+            # Set ownership to match logstash container (1000:1000)
+            chown 1000:1000 "$root_path/logstash/pipeline/logstash.conf"
+            chmod 644 "$root_path/logstash/pipeline/logstash.conf"
+            print_success "Copied: config/logstash/pipeline/logstash.conf → $root_path/logstash/pipeline/logstash.conf"
+        fi
+    else
+        print_warning "config/logstash/pipeline/logstash.conf not found in repo — skipping"
     fi
     echo
 
