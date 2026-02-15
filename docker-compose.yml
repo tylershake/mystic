@@ -23,6 +23,8 @@
 # - Bitbucket: Git repos (bitbucket.mystic.home)
 # - Mattermost: Team chat (chat.mystic.home)
 # - Mail Server: SMTP/IMAP (mail.mystic.home)
+# - Ollama: Local LLM inference (API only)
+# - Open WebUI: AI chat interface (ai.mystic.home)
 # - MariaDB: Database for Nextcloud
 # - PostgreSQL: 5 instances for other services
 #
@@ -515,6 +517,61 @@ services:
       - MM_SERVICESETTINGS_SITEURL=http://chat.mystic.home
     networks:
       - web
+
+  #-----------------------------------------------------------------------------
+  # OLLAMA - Local LLM Inference Engine
+  #-----------------------------------------------------------------------------
+  # Runs large language models locally with GPU acceleration
+  # API only — not web-facing (accessed by Open WebUI internally)
+  # Requires NVIDIA GPU with Docker GPU support configured
+  #-----------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    labels:
+      # API-only service — not routed through Traefik
+      - "traefik.enable=false"
+    networks:
+      - web
+    volumes:
+      # Ollama model storage and config (UID 0:0 — runs as root)
+      - /data/docker/ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  #-----------------------------------------------------------------------------
+  # OPEN WEBUI - AI Chat Interface
+  #-----------------------------------------------------------------------------
+  # Web-based chat interface for interacting with local LLMs via Ollama
+  # Accessible at: http://ai.mystic.home
+  # Backend: Ollama (ollama:11434)
+  # FIRST RUN: Create an admin account via the web UI
+  #-----------------------------------------------------------------------------
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: openwebui
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.openwebui.rule=Host(`ai.mystic.home`)"
+      - "traefik.http.routers.openwebui.entrypoints=web"
+      - "traefik.http.services.openwebui.loadbalancer.server.port=8080"
+    networks:
+      - web
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=
+    volumes:
+      # Open WebUI data directory (UID 0:0 — runs as root)
+      - /data/docker/openwebui:/app/backend/data
 
 ################################################################################
 # NETWORKS

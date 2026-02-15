@@ -43,6 +43,8 @@ declare -A SERVICE_UIDS=(
     ["mailserver"]=5000      # Docker-mailserver runs as UID 5000
     ["gateway"]=101          # Nginx (alpine) runs as nginx user (101:101)
     ["traefik"]=0            # Traefik runs as root (needs docker socket access)
+    ["ollama"]=0             # Ollama runs as root (0:0)
+    ["openwebui"]=0          # Open WebUI runs as root (0:0)
 )
 
 ################################################################################
@@ -100,6 +102,8 @@ CONTAINER UIDs USED:
     Mail Server:    5000:5000
     Gateway:        101:101 (nginx)
     Traefik:        0:0 (root)
+    Ollama:         0:0 (root)
+    Open WebUI:     0:0 (root)
 
 EXAMPLES:
     # Dry run to see what will be created
@@ -189,6 +193,12 @@ get_service_uid() {
             ;;
         *traefik*)
             echo "${SERVICE_UIDS[traefik]}"
+            ;;
+        *ollama*)
+            echo "${SERVICE_UIDS[ollama]}"
+            ;;
+        *openwebui*)
+            echo "${SERVICE_UIDS[openwebui]}"
             ;;
         *)
             # Default to root for unknown services

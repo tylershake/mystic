@@ -16,6 +16,8 @@ This project provides a complete home server stack with the following services:
 - **Bitbucket** - Git repository management
 - **Mattermost** - Team chat and communication
 - **Mail Server** - Full-featured SMTP/IMAP email service
+- **Ollama** - Local LLM inference engine with GPU acceleration
+- **Open WebUI** - Web-based AI chat interface
 - **PostgreSQL** - Database servers (5 instances)
 - **MariaDB** - MySQL-compatible database
 
@@ -88,6 +90,8 @@ ls -lan /data/docker/
 | Bitbucket | 2003:2003 | bitbucket |
 | Mattermost | 2000:2000 | mattermost |
 | Mail Server | 5000:5000 | mailserver |
+| Ollama | 0:0 | root |
+| Open WebUI | 0:0 | root |
 | Gateway (Nginx) | 101:101 | nginx |
 
 ### 3. Create Docker Network
@@ -134,6 +138,7 @@ Once running, services are available at:
 | Bitbucket | http://bitbucket.mystic.home | Web setup required |
 | Mattermost | http://chat.mystic.home | Web setup required |
 | Mail Server | SMTP/IMAP (see [Mail Server Configuration](#mail-server-configuration)) | CLI setup required |
+| Open WebUI | http://ai.mystic.home | Web setup required |
 
 ## Project Structure
 
@@ -179,6 +184,8 @@ All persistent data is stored under `/data/docker/`:
 │   ├── mail-state/  # Server state
 │   ├── mail-logs/   # Mail logs
 │   └── config/      # Mail server configuration
+├── ollama/          # Ollama models and config
+├── openwebui/       # Open WebUI data
 ├── mariadbone/      # MariaDB data (Nextcloud)
 ├── postgresdbone/   # PostgreSQL data (Confluence)
 ├── postgresdbtwo/   # PostgreSQL data (Jira)
@@ -291,6 +298,7 @@ Add these entries to your local DNS server or `/etc/hosts`:
 192.168.1.100  bitbucket.mystic.home
 192.168.1.100  chat.mystic.home
 192.168.1.100  mail.mystic.home
+192.168.1.100  ai.mystic.home
 ```
 
 Replace `192.168.1.100` with your server's IP address.
@@ -367,6 +375,57 @@ docker exec -it mailserver setup alias add alias@mystic.home user@mystic.home
 # Restart after config changes
 docker compose restart mailserver
 ```
+
+### Ollama & Open WebUI
+
+#### Prerequisites
+
+- **NVIDIA GPU** required for accelerated inference
+- **NVIDIA Container Toolkit** must be installed on the host:
+
+```bash
+# Add the NVIDIA Container Toolkit repository
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+# Install the toolkit
+sudo apt update
+sudo apt install -y nvidia-container-toolkit
+
+# Configure Docker to use the NVIDIA runtime
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+- Verify GPU access inside Docker:
+
+```bash
+docker run --rm --gpus all ubuntu nvidia-smi
+```
+
+#### First-Time Setup
+
+- Open WebUI is accessible at http://ai.mystic.home — create an admin account on first visit.
+- No models are pre-installed. Pull a model via the Open WebUI interface or CLI:
+
+```bash
+# Pull a model
+docker exec -it ollama ollama pull llama3.2
+
+# List installed models
+docker exec -it ollama ollama list
+
+# Check GPU usage
+nvidia-smi
+```
+
+#### Notes
+
+- Only Ollama needs GPU access; Open WebUI is a frontend that connects to Ollama via HTTP.
+- Models are stored in `/data/docker/ollama/` and persist across container restarts.
+- GPU memory usage depends on model size: 7B models ~4GB VRAM, 13B ~8GB, 70B ~40GB.
 
 ### Jenkins Plugin Installation
 
