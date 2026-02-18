@@ -163,7 +163,9 @@ services:
     ports:
       - "50000:50000"  # JNLP agent port
     networks:
-      - web
+      web:
+        aliases:
+          - jenkins.mystic.home
     volumes:
       # Jenkins home directory (UID 1000:1000 required)
       - /data/docker/jenkins/:/var/jenkins_home
@@ -194,7 +196,9 @@ services:
     ports:
       - "54663:54663"  # Remote agent port
     networks:
-      - web
+      web:
+        aliases:
+          - bamboo.mystic.home
     volumes:
       # Bamboo data directory (UID 2005:2005 required)
       - /data/docker/bamboo/:/var/atlassian/application-data/bamboo
@@ -246,7 +250,9 @@ services:
     ports:
       - "8091:8091"  # Synchrony collaborative editing
     networks:
-      - web
+      web:
+        aliases:
+          - confluence.mystic.home
     volumes:
       # Confluence data directory (UID 2002:2002 required)
       - /data/docker/confluence/:/var/atlassian/application-data/confluence
@@ -295,7 +301,9 @@ services:
     expose:
       - "8080"
     networks:
-      - web
+      web:
+        aliases:
+          - jira.mystic.home
     volumes:
       # Jira data directory (UID 2001:2001 required)
       - /data/docker/jira/:/var/atlassian/application-data/jira
@@ -347,7 +355,9 @@ services:
     ports:
       - "7999:7999"  # SSH port for Git operations
     networks:
-      - web
+      web:
+        aliases:
+          - bitbucket.mystic.home
     volumes:
       # Bitbucket data directory (UID 2003:2003 required)
       - /data/docker/bitbucket/:/var/atlassian/application-data/bitbucket
