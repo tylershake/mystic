@@ -795,6 +795,31 @@ Also note: changing PostgreSQL major versions on existing data requires a migrat
 - **Port**: `5432`
 - **JDBC URL format**: `jdbc:postgresql://<host>:5432/home`
 
+### Bamboo Remote Agent Configuration
+
+After completing the Bamboo first-time setup wizard, you must update the broker client URL before remote agents can connect. Bamboo's default broker URL uses SSL, but this stack runs without SSL/TLS encryption on port 54663.
+
+**Why this is required**: Bamboo auto-generates a broker client URL of `ssl://BAMBOO_SERVER:54663` during setup. Remote agents use this URL to connect back to the Bamboo server. Because this stack does not terminate SSL for the agent port (port 54663 is a raw TCP passthrough, not routed through Traefik), agents will fail to connect if the URL remains set to the SSL scheme.
+
+**Steps:**
+
+1. Log in to Bamboo at http://bamboo.mystic.home as an administrator.
+2. Go to the cog icon (top right) and select **Administration**.
+3. Under **General**, click **General Configuration**.
+4. Locate the **Broker client URL** field. It will show a value similar to:
+   ```
+   ssl://BAMBOO_SERVER:54663
+   ```
+5. Change it to:
+   ```
+   tcp://bamboo.mystic.home:54663
+   ```
+6. Click **Save**.
+
+Remote agents can now connect to the Bamboo server over plain TCP on port 54663.
+
+> **Note**: If you are running Bamboo agents on the same host as the server, they can also connect using `tcp://bamboo:54663` (the container name), which resolves within the Docker `web` network. The hostname `bamboo.mystic.home` works because the `bamboo` container is registered on the network under that alias.
+
 ## Contributing
 
 1. Fork the repository

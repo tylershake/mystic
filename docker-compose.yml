@@ -180,6 +180,9 @@ services:
   # FIRST RUN: Configure database connection via web UI
   #   Host: postgresdbfive, Port: 5432, Database: home
   #   User: mystic, Password: password
+  # AFTER SETUP: Change broker URL for remote agents (Admin > General Configuration)
+  #   Default broker client URL uses SSL, but this stack runs unencrypted.
+  #   Change: ssl://BAMBOO_SERVER:54663 → tcp://bamboo.mystic.home:54663
   #-----------------------------------------------------------------------------
   bamboo:
     image: atlassian/bamboo:latest
