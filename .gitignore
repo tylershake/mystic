@@ -11,3 +11,31 @@ Thumbs.db
 
 # Environment
 .env
+
+# Service volume directories (runtime data, not source)
+bamboo/
+bitbucket/
+confluence/
+elasticsearch/
+gateway/
+jenkins/
+jira/
+kibana/
+logstash/
+mailserver/
+mariadbone/
+mattermost/
+nextcloud/
+ollama/
+openwebui/
+postgresdbone/
+postgresdbtwo/
+postgresdbthree/
+postgresdbfour/
+postgresdbfive/
+traefik/
+
+# Generated artifacts (offline deployment)
+docker-images/
+volume-exports/
+mystic-bundle/

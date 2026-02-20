@@ -13,6 +13,12 @@
 
 set -e  # Exit on error
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+    set -a; source "$PROJECT_DIR/.env"; set +a
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -22,8 +28,9 @@ NC='\033[0m' # No Color
 
 # Default configuration
 DEFAULT_INPUT="./volume-exports"
-DEFAULT_ROOT="/data/docker"
+DEFAULT_ROOT="${MYSTIC_ROOT:-.}"
 DRY_RUN=false
+FORCE=false
 FILTER=""
 
 ################################################################################
@@ -63,7 +70,7 @@ maintained correctly.
 OPTIONS:
     -h, --help                  Show this help message
     -d, --dry-run               Show what would be imported without making changes
-    -r, --root ROOT_PATH        Volume root directory (default: /data/docker)
+    -r, --root ROOT_PATH        Volume root directory (default: MYSTIC_ROOT from .env, or current directory)
     --filter PATTERN            Only import archives matching PATTERN (grep -i, e.g. "jenkins")
 
 ARGUMENTS:
@@ -73,7 +80,7 @@ EXAMPLES:
     # Dry run to see what would be imported
     ./import-volumes.sh --dry-run
 
-    # Import all volume archives to default /data/docker
+    # Import all volume archives to default MYSTIC_ROOT
     sudo ./import-volumes.sh
 
     # Import from USB drive to custom root
@@ -144,9 +151,14 @@ import_archive() {
 
     # Check if target directory already exists
     if [[ -d "$target_dir" ]]; then
-        print_warning "  Target directory already exists: $target_dir"
-        echo -en "  [S]kip, [O]verwrite, or [B]ackup and replace? [s/o/b] "
-        read -r response
+        local response
+        if [[ "$FORCE" == true ]]; then
+            response="o"
+        else
+            print_warning "  Target directory already exists: $target_dir"
+            echo -en "  [S]kip, [O]verwrite, or [B]ackup and replace? [s/o/b] "
+            read -r response
+        fi
         case "$response" in
             [Oo])
                 print_info "  Removing existing directory..."
@@ -245,6 +257,10 @@ main() {
                 FILTER="$2"
                 shift 2
                 ;;
+            -y|--force)
+                FORCE=true
+                shift
+                ;;
             -*)
                 print_error "Unknown option: $1"
                 usage
@@ -321,11 +337,13 @@ main() {
     fi
 
     # Confirm before proceeding
-    echo -en "Proceed with importing $total volume(s) to ${BLUE}$root_path${NC}? [y/N] "
-    read -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-        print_info "Aborted by user"
-        exit 0
+    if [[ "$FORCE" == false ]]; then
+        echo -en "Proceed with importing $total volume(s) to ${BLUE}$root_path${NC}? [y/N] "
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            print_info "Aborted by user"
+            exit 0
+        fi
     fi
     echo
 

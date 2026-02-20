@@ -31,7 +31,7 @@ All services are accessible via `*.mystic.home` domain names through Traefik.
 - **Operating System**: Ubuntu/Debian Linux (tested on Ubuntu 22.04+)
 - **Docker**: Version 20.10 or later
 - **Docker Compose**: Version 2.0 or later
-- **Disk Space**: Minimum 50GB recommended for `/data/docker`
+- **Disk Space**: Minimum 50GB recommended for the volume root directory
 - **Memory**: Minimum 16GB RAM recommended
 - **Root Access**: Required for initial setup
 
@@ -66,17 +66,17 @@ cd mystic_home_server
 **IMPORTANT**: Docker containers run as specific users (UIDs). You must create directories with the correct ownership.
 
 ```bash
-# Make the setup script executable
-chmod +x setup-volumes.sh
+# Make scripts executable
+chmod +x scripts/*.sh
 
 # Preview what will be created (dry run)
-./setup-volumes.sh --dry-run
+scripts/setup-volumes.sh --dry-run
 
 # Create directories with proper permissions (requires root)
-sudo ./setup-volumes.sh
+sudo scripts/setup-volumes.sh
 
 # Verify ownership (should show numeric UIDs like 999, 2000, 2001, etc.)
-ls -lan /data/docker/
+ls -lan $MYSTIC_ROOT/
 ```
 
 #### Container UIDs Reference
@@ -100,14 +100,25 @@ ls -lan /data/docker/
 | Kibana | 1000:1000 | kibana |
 | Gateway (Nginx) | 101:101 | nginx |
 
-### 3. Create Docker Network
+### 3. Configure Environment
+
+```bash
+# Copy the environment template
+cp .env.example .env
+
+# Edit if your volumes live somewhere other than the project directory
+# Default MYSTIC_ROOT=. means volumes are created alongside docker-compose.yml
+nano .env
+```
+
+### 4. Create Docker Network
 
 ```bash
 # Create the external network that all services will use
 docker network create web
 ```
 
-### 4. Configure Services (Optional)
+### 5. Configure Services (Optional)
 
 Before starting, you may want to:
 
@@ -115,7 +126,7 @@ Before starting, you may want to:
 - **Configure Traefik** - The setup script copies `config/traefik.toml` automatically; edit it if needed
 - **Set up DNS** - Configure `*.mystic.home` to point to your server IP
 
-### 5. Start Services
+### 6. Start Services
 
 ```bash
 # Start all services
@@ -128,7 +139,7 @@ docker compose logs -f
 docker compose ps
 ```
 
-### 6. Access Services
+### 7. Access Services
 
 Once running, services are available at:
 
@@ -156,21 +167,25 @@ mystic_home_server/
 │   └── logstash/
 │       └── pipeline/
 │           └── logstash.conf   # Default Logstash pipeline config
+├── scripts/                    # All operational scripts
+│   ├── setup-volumes.sh        # Volume directory creation script
+│   ├── save-images.sh          # Save Docker images to .tar files (online)
+│   ├── load-images.sh          # Load Docker images from .tar files (offline)
+│   ├── export-volumes.sh       # Archive configured volumes (online)
+│   ├── import-volumes.sh       # Restore volume archives (offline)
+│   ├── deploy.sh               # Single-command offline deployment
+│   └── bundle.sh               # Selective service bundling for transfer
 ├── docker-compose.yml          # Main service definitions
-├── setup-volumes.sh            # Volume directory creation script
-├── save-images.sh              # Save Docker images to .tar files (online)
-├── load-images.sh              # Load Docker images from .tar files (offline)
-├── export-volumes.sh           # Archive configured volumes (online)
-├── import-volumes.sh           # Restore volume archives (offline)
+├── .env.example                # Environment configuration template
 └── README.md                   # This file
 ```
 
 ## Data Storage
 
-All persistent data is stored under `/data/docker/`:
+All persistent data is stored under the `MYSTIC_ROOT` directory (configured in `.env`, defaults to the project directory):
 
 ```
-/data/docker/
+$MYSTIC_ROOT/
 ├── traefik/          # Traefik config and certificates
 ├── gateway/          # Gateway landing page
 │   ├── html/         # Static website files (from separate repo)
@@ -262,7 +277,7 @@ docker compose down -v
 docker compose down
 
 # Backup all data
-sudo tar -czf mystic-backup-$(date +%Y%m%d).tar.gz /data/docker/
+sudo tar -czf mystic-backup-$(date +%Y%m%d).tar.gz $MYSTIC_ROOT/
 
 # Restart services
 docker compose up -d
@@ -272,7 +287,7 @@ docker compose up -d
 
 ### Traefik Configuration
 
-Create `/data/docker/traefik/traefik.toml`:
+Create `$MYSTIC_ROOT/traefik/traefik.toml`:
 
 ```toml
 [global]
@@ -424,7 +439,7 @@ nvidia-smi
 #### Notes
 
 - Only Ollama needs GPU access; Open WebUI is a frontend that connects to Ollama via HTTP.
-- Models are stored in `/data/docker/ollama/` and persist across container restarts.
+- Models are stored in `$MYSTIC_ROOT/ollama/` and persist across container restarts.
 - GPU memory usage depends on model size: 7B models ~4GB VRAM, 13B ~8GB, 70B ~40GB.
 
 ### ELK Stack (Elasticsearch, Logstash, Kibana)
@@ -452,7 +467,7 @@ echo '{"message":"test"}' | nc localhost 5010
 
 #### Customizing the Pipeline
 
-- The active pipeline config is at `/data/docker/logstash/pipeline/logstash.conf`.
+- The active pipeline config is at `$MYSTIC_ROOT/logstash/pipeline/logstash.conf`.
 - The default config in the repo is at `config/logstash/pipeline/logstash.conf`.
 - Restart Logstash after changes:
 
@@ -565,7 +580,7 @@ Set up Jenkins on a machine with internet access first, install all desired plug
 ```bash
 # On the online machine — archive the Jenkins volume
 docker compose stop jenkins
-sudo tar -czf jenkins-volume.tar.gz /data/docker/jenkins/
+sudo tar -czf jenkins-volume.tar.gz $MYSTIC_ROOT/jenkins/
 
 # Transfer to offline server (USB drive, scp, etc.)
 scp jenkins-volume.tar.gz user@offline-server:/tmp/
@@ -573,7 +588,7 @@ scp jenkins-volume.tar.gz user@offline-server:/tmp/
 # On the offline server — restore
 docker compose stop jenkins
 sudo tar -xzf /tmp/jenkins-volume.tar.gz -C /
-sudo chown -R 1000:1000 /data/docker/jenkins/
+sudo chown -R 1000:1000 $MYSTIC_ROOT/jenkins/
 docker compose start jenkins
 ```
 
@@ -593,8 +608,8 @@ Download individual plugin files and place them directly into the plugins direct
 
 ```bash
 # Copy downloaded plugins to the volume
-sudo cp *.hpi /data/docker/jenkins/plugins/
-sudo chown 1000:1000 /data/docker/jenkins/plugins/*.hpi
+sudo cp *.hpi $MYSTIC_ROOT/jenkins/plugins/
+sudo chown 1000:1000 $MYSTIC_ROOT/jenkins/plugins/*.hpi
 
 # Restart Jenkins to load new plugins
 docker compose restart jenkins
@@ -607,101 +622,117 @@ docker compose logs jenkins | grep -i "plugin"
 
 ## Offline / Air-Gapped Deployment
 
-### Overview
+### Target Machine Prerequisites
 
-This project includes scripts to package Docker images and configured volumes for transfer to offline or air-gapped systems. The typical workflow is to set up and configure services on a machine with internet access, then export everything to portable media (USB drive, external HDD, etc.) for deployment on the isolated target machine.
+- **OS**: Ubuntu/Debian 22.04+ (other Linux distros should work but are untested)
+- **Docker Engine**: 20.10+ with Docker Compose v2+
+- **Disk Space**: 50GB minimum (100GB+ recommended if using Ollama models)
+- **RAM**: 16GB recommended (can run ~7-8 services concurrently; 8GB minimum)
+- **Root/sudo access**: Required for volume setup and container management
+- **Optional**: NVIDIA GPU + Container Toolkit (for Ollama GPU acceleration only)
 
-### Workflow
+> **Installing Docker offline**: On the online machine, download the Docker `.deb` packages
+> (`docker-ce`, `docker-ce-cli`, `containerd.io`, `docker-compose-plugin`) from
+> [download.docker.com](https://download.docker.com/linux/ubuntu/dists/) and transfer them
+> via USB. Install with `sudo dpkg -i *.deb` on the target machine.
 
-1. **On the online machine** — pull all Docker images and configure services as needed:
+### Quick Deploy (One Command)
 
-   ```bash
-   docker compose pull
-   docker compose up -d
-   # Configure Jenkins plugins, pull Ollama models, set up Kibana dashboards, etc.
-   ```
+If you have a pre-built bundle (created with `bundle.sh`), deployment is a single command:
 
-2. **Export images and volumes** from the online machine:
+```bash
+cd /path/to/mystic-bundle
+sudo scripts/deploy.sh
+```
 
-   ```bash
-   ./save-images.sh /mnt/usb/docker-images
-   sudo ./export-volumes.sh --all --force /mnt/usb/volume-exports
-   ```
+This runs preflight checks, loads Docker images, sets up volumes, creates the Docker network, and starts all services.
 
-3. **Transfer to portable media** — copy the `docker-images/` and `volume-exports/` directories (along with the project repository) to a USB drive or external disk.
+Use `--dry-run` to preview what it will do:
 
-4. **On the offline machine** — load images, set up volumes, and start services:
+```bash
+sudo scripts/deploy.sh --dry-run
+```
 
-   ```bash
-   # Load Docker images
-   ./load-images.sh /mnt/usb/docker-images
+### Creating a Bundle (Online Machine)
 
-   # Create volume directories with correct permissions
-   sudo ./setup-volumes.sh
+Use `bundle.sh` on an online machine to package everything for transfer:
 
-   # Import pre-configured volumes (overwrites empty directories from setup)
-   sudo ./import-volumes.sh /mnt/usb/volume-exports
+```bash
+# Bundle all services (images + volumes + repo files)
+sudo scripts/bundle.sh --all /mnt/usb/mystic
 
-   # Create the external network and start services
-   docker network create web
-   docker compose up -d
-   ```
+# Bundle only specific services
+sudo scripts/bundle.sh --services traefik,gateway,jenkins,ollama /mnt/usb/mystic
+
+# Preview without creating anything
+sudo scripts/bundle.sh --dry-run --all /mnt/usb/mystic
+```
+
+**Which volumes to export:**
+- **jenkins** — plugins installed via online Update Center
+- **ollama** — pre-pulled LLM models (several GB each)
+- **kibana** — custom dashboards and data views
+- **Database volumes** — only if seeded with data or first-time setup wizards completed
+
+### Step-by-Step Deploy (Manual)
+
+For full control, run each step individually:
+
+```bash
+# 1. Copy the bundle to the target machine and cd into it
+cd /path/to/mystic
+
+# 2. Configure environment
+cp .env.example .env
+nano .env                         # Set MYSTIC_ROOT if needed
+
+# 3. Load Docker images
+scripts/load-images.sh docker-images/
+
+# 4. Create volume directories with correct permissions
+sudo scripts/setup-volumes.sh
+
+# 5. Import pre-configured volumes (if included in bundle)
+sudo scripts/import-volumes.sh --force volume-exports/
+
+# 6. Create Docker network and start services
+docker network create web
+docker compose up -d
+```
+
+### DNS Setup
+
+Configure `*.mystic.home` on the offline network. Add to `/etc/hosts` on each client machine (or to your local DNS server):
+
+```
+SERVER_IP  home.mystic.home mystic.home cloud.mystic.home jenkins.mystic.home
+SERVER_IP  bamboo.mystic.home confluence.mystic.home jira.mystic.home
+SERVER_IP  bitbucket.mystic.home chat.mystic.home ai.mystic.home kibana.mystic.home
+```
+
+Replace `SERVER_IP` with the target machine's IP address.
+
+### Post-Deploy Checklist
+
+1. Change default passwords in `docker-compose.yml` (search for `password`)
+2. Verify services are running: `docker compose ps`
+3. Check logs for errors: `docker compose logs --tail=50`
+4. Access services via browser (requires DNS setup above)
+5. Complete first-time setup wizards for Atlassian products (Confluence, Jira, Bitbucket, Bamboo)
 
 ### Scripts Reference
 
 | Script | Purpose |
 |--------|---------|
-| `save-images.sh` | Save all Docker images from `docker-compose.yml` to `.tar` files |
-| `load-images.sh` | Load Docker images from `.tar` files into the local daemon |
-| `export-volumes.sh` | Archive configured volume directories as `.tar.gz` files (preserves ownership) |
-| `import-volumes.sh` | Restore volume archives into `/data/docker` (preserves ownership) |
+| `scripts/bundle.sh` | Package selected services for offline transfer |
+| `scripts/deploy.sh` | Single-command deployment on offline machine |
+| `scripts/save-images.sh` | Save Docker images from compose file to `.tar` files |
+| `scripts/load-images.sh` | Load Docker images from `.tar` files into Docker daemon |
+| `scripts/export-volumes.sh` | Archive configured volume directories as `.tar.gz` files |
+| `scripts/import-volumes.sh` | Restore volume archives (preserves ownership) |
+| `scripts/setup-volumes.sh` | Create volume directories with correct container UIDs |
 
-**Common usage examples:**
-
-```bash
-# Preview what save-images would do
-./save-images.sh --dry-run
-
-# Save images to a custom directory
-./save-images.sh /mnt/usb/docker-images
-
-# Save only a specific image (filter by name)
-./save-images.sh --filter jenkins
-
-# Load images from a custom directory
-./load-images.sh /mnt/usb/docker-images
-
-# Load only a specific image
-./load-images.sh --filter jenkins
-
-# Export only specific service volumes
-sudo ./export-volumes.sh --services jenkins,ollama,kibana
-
-# Export all volumes, skipping confirmation prompts
-sudo ./export-volumes.sh --all --force /mnt/usb/volume-exports
-
-# Import volumes from USB to default /data/docker
-sudo ./import-volumes.sh /mnt/usb/volume-exports
-
-# Import only a specific volume
-sudo ./import-volumes.sh --filter jenkins
-
-# Import volumes to a custom root directory
-sudo ./import-volumes.sh -r /mnt/storage/docker /mnt/usb/volume-exports
-```
-
-All four scripts support `--dry-run` to preview actions without making changes and `--help` for full usage details.
-
-### What to Export
-
-Not all volumes need to be pre-configured online before export. The most useful ones to set up ahead of time are:
-
-- **`jenkins`** — Install plugins and configure jobs online so they are ready to use offline. Plugin installation requires internet access, so this avoids manual `.hpi` dependency resolution on the air-gapped machine.
-- **`ollama`** — Pull LLM models online (`docker exec ollama ollama pull llama3.2`). Models are large (several GB each) and cannot be downloaded offline.
-- **`kibana`** — Create data views, saved searches, and dashboards online so the monitoring interface is ready on first boot.
-- **Database volumes** (`mariadbone`, `postgresdbone`, etc.) — Export these if you have pre-seeded data, configured schemas, or completed first-time setup wizards for Atlassian products (Confluence, Jira, Bitbucket, Bamboo).
-
-Volumes like `traefik`, `gateway`, and `logstash` contain mostly static configuration and are usually fine to set up fresh via `setup-volumes.sh`.
+All scripts support `--dry-run` and `--help`.
 
 ## Security Considerations
 
@@ -741,21 +772,21 @@ docker compose logs <service-name>
 
 # Common issues:
 # 1. Network doesn't exist: docker network create web
-# 2. Wrong permissions: sudo ./setup-volumes.sh
+# 2. Wrong permissions: sudo scripts/setup-volumes.sh
 # 3. Port conflicts: Check if ports 80, 443 are available
 ```
 
 ### Permission Denied Errors
 
 ```bash
-# Verify directory ownership
-ls -lan /data/docker/
+# Verify directory ownership (replace $MYSTIC_ROOT with your volume root)
+ls -lan $MYSTIC_ROOT/
 
 # Fix PostgreSQL permissions
-sudo chown -R 999:999 /data/docker/postgres*
+sudo chown -R 999:999 $MYSTIC_ROOT/postgres*
 
 # Fix MariaDB permissions
-sudo chown -R 999:999 /data/docker/mariadbone
+sudo chown -R 999:999 $MYSTIC_ROOT/mariadbone
 ```
 
 ### Service Not Accessible

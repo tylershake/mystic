@@ -6,31 +6,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Mystic** is a self-hosted home server infrastructure using Docker Compose. It defines ~17 containerized services (reverse proxy, file storage, CI/CD, wikis, issue tracking, chat, email, AI/LLM, and ELK logging) routed through a Traefik reverse proxy on a shared Docker network named `web`.
 
-All persistent data lives under `/data/docker/` on the host, with volume directories owned by specific UIDs/GIDs per service.
+All persistent data lives under `${MYSTIC_ROOT}` (configured in `.env`, defaults to `.` — the project directory), with volume directories owned by specific UIDs/GIDs per service.
 
 ## Common Commands
 
 ```bash
 # Initial setup (run once)
+cp .env.example .env                            # Configure MYSTIC_ROOT if needed
 docker network create web
-sudo ./setup-volumes.sh               # Create /data/docker/* directories with correct ownership
-sudo ./setup-volumes.sh --dry-run     # Preview what it would do
+sudo scripts/setup-volumes.sh                   # Create volume directories with correct ownership
+sudo scripts/setup-volumes.sh --dry-run         # Preview what it would do
 
 # Lifecycle
-docker compose up -d                  # Start all services
-docker compose down                   # Stop all services
-docker compose ps                     # Check service status
-docker compose logs -f [service]      # Tail logs for a specific service
-docker compose restart [service]      # Restart a specific service
-docker compose pull                   # Update all images
+docker compose up -d                            # Start all services
+docker compose down                             # Stop all services
+docker compose ps                               # Check service status
+docker compose logs -f [service]                # Tail logs for a specific service
+docker compose restart [service]                # Restart a specific service
+docker compose pull                             # Update all images
 
-# Offline / air-gapped deployment
-./save-images.sh /path/to/dest        # Export Docker images to files
-./save-images.sh --filter jenkins /path  # Export only matching images
-sudo ./export-volumes.sh --all /path  # Archive all volume data
-sudo ./export-volumes.sh --services jenkins,ollama /path  # Selective export
-./load-images.sh /path/to/images      # Import images on offline machine
-sudo ./import-volumes.sh /path/to/volumes  # Restore volumes on offline machine
+# Offline deployment (single command)
+sudo scripts/deploy.sh                          # Full deployment on offline machine
+sudo scripts/deploy.sh --dry-run                # Preview deployment steps
+
+# Bundle for transfer (online machine)
+sudo scripts/bundle.sh --all /mnt/usb/mystic                           # Bundle everything
+sudo scripts/bundle.sh --services traefik,gateway,jenkins /mnt/usb/mystic  # Selective
+
+# Individual offline scripts
+scripts/save-images.sh /path/to/dest            # Export Docker images to files
+scripts/save-images.sh --filter jenkins /path   # Export only matching images
+sudo scripts/export-volumes.sh --all /path      # Archive all volume data
+sudo scripts/export-volumes.sh --services jenkins,ollama /path  # Selective export
+scripts/load-images.sh /path/to/images          # Import images on offline machine
+sudo scripts/import-volumes.sh /path/to/volumes # Restore volumes on offline machine
 ```
 
 ## Architecture
@@ -108,11 +117,14 @@ Ollama runs the local LLM inference engine (GPU passthrough enabled via `deploy.
 ## Key Files
 
 - `docker-compose.yml` — all service definitions, labels, volumes, environment variables
+- `.env.example` — environment configuration template (MYSTIC_ROOT for portable paths)
 - `config/traefik.toml` — Traefik reverse proxy config (Docker provider, entrypoints, debug logging)
 - `config/logstash/pipeline/logstash.conf` — Logstash input/filter/output pipeline
-- `setup-volumes.sh` — creates host directories with correct ownership (requires `sudo`)
-- `save-images.sh` / `load-images.sh` — offline image transfer
-- `export-volumes.sh` / `import-volumes.sh` — offline volume backup/restore
+- `scripts/setup-volumes.sh` — creates host directories with correct ownership (requires `sudo`)
+- `scripts/save-images.sh` / `scripts/load-images.sh` — offline image transfer
+- `scripts/export-volumes.sh` / `scripts/import-volumes.sh` — offline volume backup/restore
+- `scripts/deploy.sh` — single-command offline deployment with preflight checks
+- `scripts/bundle.sh` — selective service bundling for offline transfer
 
 ## Default Credentials
 
