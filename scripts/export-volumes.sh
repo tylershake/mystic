@@ -13,6 +13,12 @@
 
 set -e  # Exit on error
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+    set -a; source "$PROJECT_DIR/.env"; set +a
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -22,14 +28,14 @@ NC='\033[0m' # No Color
 
 # Default configuration
 DEFAULT_OUTPUT="./volume-exports"
-DEFAULT_ROOT="/data/docker"
+DEFAULT_ROOT="${MYSTIC_ROOT:-.}"
 DRY_RUN=false
 FORCE=false
 EXPORT_ALL=false
 SERVICES=""
-COMPOSE_FILE="docker-compose.yml"
+COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 
-# All known service volume directory names (top-level dirs under /data/docker)
+# All known service volume directory names (top-level dirs under MYSTIC_ROOT)
 ALL_SERVICES=(
     traefik
     gateway
@@ -90,7 +96,7 @@ systems. Preserves file ownership (container UIDs) in the archives.
 OPTIONS:
     -h, --help                      Show this help message
     -d, --dry-run                   Show what would be exported without changes
-    -r, --root ROOT_PATH            Volume root directory (default: /data/docker)
+    -r, --root ROOT_PATH            Volume root directory (default: MYSTIC_ROOT from .env, or current directory)
     -f, --file FILE                 Specify docker-compose file (default: docker-compose.yml)
     --all                           Export all service volumes
     --services SERVICE1,SERVICE2    Export only specific service volumes (comma-separated)

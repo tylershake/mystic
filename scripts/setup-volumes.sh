@@ -12,6 +12,13 @@
 
 set -e  # Exit on error
 
+# Resolve project directory and source .env
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+    set -a; source "$PROJECT_DIR/.env"; set +a
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -20,10 +27,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default configuration
-DEFAULT_ROOT="/data/docker"
+DEFAULT_ROOT="${MYSTIC_ROOT:-.}"
 DRY_RUN=false
 VERBOSE=false
-COMPOSE_FILE="docker-compose.yml"
+COMPOSE_FILE=""
 
 ################################################################################
 # Container UID/GID Mappings
@@ -90,7 +97,7 @@ OPTIONS:
     -f, --file FILE     Specify docker-compose file (default: docker-compose.yml)
 
 ARGUMENTS:
-    ROOT_PATH           Root directory for volumes (default: /data/docker)
+    ROOT_PATH           Root directory for volumes (default: MYSTIC_ROOT from .env, or current directory)
 
 CONTAINER UIDs USED:
     PostgreSQL:     999:999
@@ -115,7 +122,7 @@ EXAMPLES:
     # Dry run to see what will be created
     ./setup-volumes.sh --dry-run
 
-    # Create with default /data/docker
+    # Create with default MYSTIC_ROOT
     sudo ./setup-volumes.sh
 
     # Use custom root path
@@ -227,20 +234,18 @@ extract_volumes() {
     print_info "Extracting volume paths from $COMPOSE_FILE..." >&2
 
     # Extract volume mount paths
-    local volumes=$(grep -E '^\s+- /.+:.+' "$COMPOSE_FILE" | \
-                    sed -E 's/^\s+- ([^:]+):.*$/\1/' | \
+    # Split on :/container_path (colon followed by /) to handle ${VAR:-default} syntax
+    local volumes=$(grep -E '^\s+- (\$\{|/).+:.+' "$COMPOSE_FILE" | \
+                    sed -E 's/^\s+- (.+):(\/[^:]*)(:(ro|rw))?$/\1/' | \
                     grep -v '/var/run/docker.sock' | \
                     grep -v '/dev/shm' | \
                     sort -u)
 
+    volumes=$(echo "$volumes" | sed "s|\${MYSTIC_ROOT:-.}|$root_path|g")
+
     if [[ -z "$volumes" ]]; then
         print_error "No volumes found in $COMPOSE_FILE" >&2
         exit 1
-    fi
-
-    # Replace /data/docker with custom root path if provided
-    if [[ "$root_path" != "/data/docker" ]]; then
-        volumes=$(echo "$volumes" | sed "s|/data/docker|$root_path|g")
     fi
 
     echo "$volumes"
@@ -351,7 +356,8 @@ print_summary() {
 
 main() {
     local root_path="$DEFAULT_ROOT"
-    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+    COMPOSE_FILE="${COMPOSE_FILE:-$PROJECT_DIR/docker-compose.yml}"
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -441,11 +447,11 @@ main() {
 
     # Copy configuration files
     print_info "Copying configuration files..."
-    if [[ -f "$SCRIPT_DIR/config/traefik.toml" ]]; then
+    if [[ -f "$PROJECT_DIR/config/traefik.toml" ]]; then
         if [[ "$DRY_RUN" == true ]]; then
             print_info "[DRY RUN] Would copy: config/traefik.toml → $root_path/traefik/traefik.toml"
         else
-            cp "$SCRIPT_DIR/config/traefik.toml" "$root_path/traefik/traefik.toml"
+            cp "$PROJECT_DIR/config/traefik.toml" "$root_path/traefik/traefik.toml"
             # Set ownership to match traefik container (root)
             chown 0:0 "$root_path/traefik/traefik.toml"
             chmod 644 "$root_path/traefik/traefik.toml"
@@ -455,12 +461,12 @@ main() {
         print_warning "config/traefik.toml not found in repo — skipping"
     fi
 
-    if [[ -f "$SCRIPT_DIR/config/logstash/pipeline/logstash.conf" ]]; then
+    if [[ -f "$PROJECT_DIR/config/logstash/pipeline/logstash.conf" ]]; then
         if [[ "$DRY_RUN" == true ]]; then
             print_info "[DRY RUN] Would copy: config/logstash/pipeline/logstash.conf → $root_path/logstash/pipeline/logstash.conf"
         else
             mkdir -p "$root_path/logstash/pipeline"
-            cp "$SCRIPT_DIR/config/logstash/pipeline/logstash.conf" "$root_path/logstash/pipeline/logstash.conf"
+            cp "$PROJECT_DIR/config/logstash/pipeline/logstash.conf" "$root_path/logstash/pipeline/logstash.conf"
             # Set ownership to match logstash container (1000:1000)
             chown 1000:1000 "$root_path/logstash/pipeline/logstash.conf"
             chmod 644 "$root_path/logstash/pipeline/logstash.conf"

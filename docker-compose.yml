@@ -6,11 +6,13 @@
 # collaboration tools.
 #
 # BEFORE FIRST RUN:
-# 1. Run setup-volumes.sh to create directories with correct permissions
-# 2. Create external network: docker network create web
-# 3. Change all passwords from default "password" value
-# 4. Configure Traefik (create /data/docker/traefik/traefik.toml)
+# 1. Copy .env.example to .env and set MYSTIC_ROOT if needed
+# 2. Run scripts/setup-volumes.sh to create directories
+# 3. Create external network: docker network create web
+# 4. Change default passwords in this file
 # 5. Set up DNS for *.mystic.home domains
+#
+# OR for offline deployment, run: sudo scripts/deploy.sh
 #
 # SERVICES:
 # - Traefik: Reverse proxy (ports 80, 8080)
@@ -52,7 +54,7 @@ services:
       - "8080:8080"   # Dashboard (WARNING: publicly accessible without auth)
     volumes:
       # Main configuration file (must be created before starting)
-      - /data/docker/traefik/traefik.toml:/traefik.toml
+      - ${MYSTIC_ROOT:-.}/traefik/traefik.toml:/traefik.toml
       # Docker socket access for automatic service discovery
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -80,9 +82,9 @@ services:
     volumes:
       # Static website files (HTML/CSS/JS from separate repo)
       # Place your gateway page implementation here
-      - /data/docker/gateway/html:/usr/share/nginx/html:ro
+      - ${MYSTIC_ROOT:-.}/gateway/html:/usr/share/nginx/html:ro
       # Optional: Custom nginx configuration (uncomment if you have one)
-      # - /data/docker/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      # - ${MYSTIC_ROOT:-.}/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
 
   #-----------------------------------------------------------------------------
   # NEXTCLOUD - File Storage & Collaboration
@@ -118,7 +120,7 @@ services:
       - MYSQL_HOST=mariadbone
     volumes:
       # Nextcloud data and config (UID 33:33 required)
-      - /data/docker/nextcloud:/var/www/html
+      - ${MYSTIC_ROOT:-.}/nextcloud:/var/www/html
 
   #-----------------------------------------------------------------------------
   # MARIADB - Database for Nextcloud
@@ -140,7 +142,7 @@ services:
       - web
     volumes:
       # Database files (UID 999:999 required)
-      - /data/docker/mariadbone:/var/lib/mysql
+      - ${MYSTIC_ROOT:-.}/mariadbone:/var/lib/mysql
 
   #-----------------------------------------------------------------------------
   # JENKINS - Continuous Integration & Deployment
@@ -168,7 +170,7 @@ services:
           - jenkins.mystic.home
     volumes:
       # Jenkins home directory (UID 1000:1000 required)
-      - /data/docker/jenkins/:/var/jenkins_home
+      - ${MYSTIC_ROOT:-.}/jenkins/:/var/jenkins_home
 
   #-----------------------------------------------------------------------------
   # BAMBOO - Build & Deployment Server
@@ -204,7 +206,7 @@ services:
           - bamboo.mystic.home
     volumes:
       # Bamboo data directory (UID 2005:2005 required)
-      - /data/docker/bamboo/:/var/atlassian/application-data/bamboo
+      - ${MYSTIC_ROOT:-.}/bamboo/:/var/atlassian/application-data/bamboo
 
   #-----------------------------------------------------------------------------
   # POSTGRESQL Instance 5 - Database for Bamboo
@@ -225,7 +227,7 @@ services:
       - web
     volumes:
       # Database files (UID 999:999 required)
-      - /data/docker/postgresdbfive:/var/lib/postgresql/data
+      - ${MYSTIC_ROOT:-.}/postgresdbfive:/var/lib/postgresql/data
 
   #-----------------------------------------------------------------------------
   # CONFLUENCE - Team Wiki & Documentation
@@ -258,7 +260,7 @@ services:
           - confluence.mystic.home
     volumes:
       # Confluence data directory (UID 2002:2002 required)
-      - /data/docker/confluence/:/var/atlassian/application-data/confluence
+      - ${MYSTIC_ROOT:-.}/confluence/:/var/atlassian/application-data/confluence
 
   #-----------------------------------------------------------------------------
   # POSTGRESQL Instance 1 - Database for Confluence
@@ -279,7 +281,7 @@ services:
       - web
     volumes:
       # Database files (UID 999:999 required)
-      - /data/docker/postgresdbone:/var/lib/postgresql/data
+      - ${MYSTIC_ROOT:-.}/postgresdbone:/var/lib/postgresql/data
 
   #-----------------------------------------------------------------------------
   # JIRA - Project & Issue Tracking
@@ -309,7 +311,7 @@ services:
           - jira.mystic.home
     volumes:
       # Jira data directory (UID 2001:2001 required)
-      - /data/docker/jira/:/var/atlassian/application-data/jira
+      - ${MYSTIC_ROOT:-.}/jira/:/var/atlassian/application-data/jira
 
   #-----------------------------------------------------------------------------
   # POSTGRESQL Instance 2 - Database for Jira
@@ -330,7 +332,7 @@ services:
       - web
     volumes:
       # Database files (UID 999:999 required)
-      - /data/docker/postgresdbtwo:/var/lib/postgresql/data
+      - ${MYSTIC_ROOT:-.}/postgresdbtwo:/var/lib/postgresql/data
 
   #-----------------------------------------------------------------------------
   # BITBUCKET - Git Repository Management
@@ -363,7 +365,7 @@ services:
           - bitbucket.mystic.home
     volumes:
       # Bitbucket data directory (UID 2003:2003 required)
-      - /data/docker/bitbucket/:/var/atlassian/application-data/bitbucket
+      - ${MYSTIC_ROOT:-.}/bitbucket/:/var/atlassian/application-data/bitbucket
 
   #-----------------------------------------------------------------------------
   # POSTGRESQL Instance 3 - Database for Bitbucket
@@ -384,7 +386,7 @@ services:
       - web
     volumes:
       # Database files (UID 999:999 required)
-      - /data/docker/postgresdbthree:/var/lib/postgresql/data
+      - ${MYSTIC_ROOT:-.}/postgresdbthree:/var/lib/postgresql/data
 
   #-----------------------------------------------------------------------------
   # POSTGRESQL Instance 4 - Database for Mattermost (Hardened)
@@ -409,7 +411,7 @@ services:
       - /var/run/postgresql
     volumes:
       # Database files (UID 999:999 required)
-      - /data/docker/postgresdbfour:/var/lib/postgresql/data
+      - ${MYSTIC_ROOT:-.}/postgresdbfour:/var/lib/postgresql/data
     environment:
       - TZ=UTC
       - POSTGRES_USER=mystic
@@ -461,12 +463,12 @@ services:
       - web
     volumes:
       # Mail data and configuration
-      - /data/docker/mailserver/mail-data:/var/mail:rw
-      - /data/docker/mailserver/mail-state:/var/mail-state:rw
-      - /data/docker/mailserver/mail-logs:/var/log/mail:rw
-      - /data/docker/mailserver/config:/tmp/docker-mailserver:rw
+      - ${MYSTIC_ROOT:-.}/mailserver/mail-data:/var/mail:rw
+      - ${MYSTIC_ROOT:-.}/mailserver/mail-state:/var/mail-state:rw
+      - ${MYSTIC_ROOT:-.}/mailserver/mail-logs:/var/log/mail:rw
+      - ${MYSTIC_ROOT:-.}/mailserver/config:/tmp/docker-mailserver:rw
       # SSL certificates (use Let's Encrypt certificates from Traefik)
-      # - /data/docker/traefik/acme:/etc/letsencrypt:ro
+      # - ${MYSTIC_ROOT:-.}/traefik/acme:/etc/letsencrypt:ro
     environment:
       # Basic configuration
       - ENABLE_SPAMASSASSIN=1
@@ -513,12 +515,12 @@ services:
       - /tmp
     volumes:
       # All Mattermost data directories (UID 2000:2000 required)
-      - /data/docker/mattermost/config:/mattermost/config:rw
-      - /data/docker/mattermost/data:/mattermost/data:rw
-      - /data/docker/mattermost/logs:/mattermost/logs:rw
-      - /data/docker/mattermost/plugins:/mattermost/plugins:rw
-      - /data/docker/mattermost/clientplugins:/mattermost/client/plugins:rw
-      - /data/docker/mattermost/bleveindexes:/mattermost/bleve-indexes:rw
+      - ${MYSTIC_ROOT:-.}/mattermost/config:/mattermost/config:rw
+      - ${MYSTIC_ROOT:-.}/mattermost/data:/mattermost/data:rw
+      - ${MYSTIC_ROOT:-.}/mattermost/logs:/mattermost/logs:rw
+      - ${MYSTIC_ROOT:-.}/mattermost/plugins:/mattermost/plugins:rw
+      - ${MYSTIC_ROOT:-.}/mattermost/clientplugins:/mattermost/client/plugins:rw
+      - ${MYSTIC_ROOT:-.}/mattermost/bleveindexes:/mattermost/bleve-indexes:rw
       # Optional: GitLab SSO certificate chain
       # Uncomment and set path if using GitLab SSO
       # - ${GITLAB_PKI_CHAIN_PATH}:/etc/ssl/certs/pki_chain.pem:ro
@@ -552,7 +554,7 @@ services:
       - web
     volumes:
       # Ollama model storage and config (UID 0:0 — runs as root)
-      - /data/docker/ollama:/root/.ollama
+      - ${MYSTIC_ROOT:-.}/ollama:/root/.ollama
     deploy:
       resources:
         reservations:
@@ -587,7 +589,7 @@ services:
       - WEBUI_SECRET_KEY=
     volumes:
       # Open WebUI data directory (UID 0:0 — runs as root)
-      - /data/docker/openwebui:/app/backend/data
+      - ${MYSTIC_ROOT:-.}/openwebui:/app/backend/data
 
   #-----------------------------------------------------------------------------
   # ELASTICSEARCH - Search & Analytics Engine
@@ -611,7 +613,7 @@ services:
       - web
     volumes:
       # Elasticsearch data directory (UID 1000:1000 required)
-      - /data/docker/elasticsearch/data:/usr/share/elasticsearch/data
+      - ${MYSTIC_ROOT:-.}/elasticsearch/data:/usr/share/elasticsearch/data
 
   #-----------------------------------------------------------------------------
   # LOGSTASH - Log Ingestion Pipeline
@@ -639,7 +641,7 @@ services:
       - web
     volumes:
       # Logstash pipeline configuration (UID 1000:1000 required)
-      - /data/docker/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ${MYSTIC_ROOT:-.}/logstash/pipeline:/usr/share/logstash/pipeline:ro
 
   #-----------------------------------------------------------------------------
   # KIBANA - Log Visualization & Dashboards
@@ -666,7 +668,7 @@ services:
       - web
     volumes:
       # Kibana saved objects, dashboards, and settings (UID 1000:1000 required)
-      - /data/docker/kibana:/usr/share/kibana/data
+      - ${MYSTIC_ROOT:-.}/kibana:/usr/share/kibana/data
 
 ################################################################################
 # NETWORKS
