@@ -126,6 +126,47 @@ Ollama runs the local LLM inference engine (GPU passthrough enabled via `deploy.
 - `scripts/deploy.sh` — single-command offline deployment with preflight checks
 - `scripts/bundle.sh` — selective service bundling for offline transfer
 
+## Session Notes (Critical — Read First)
+
+To preserve continuity across sessions and token limits, Claude MUST maintain session notes in `/home/mango/.claude/projects/-data-docker/memory/session-notes.md`.
+
+### On Session Start
+1. **Always read** `session-notes.md` at the beginning of every conversation before doing any work
+2. If an active plan or in-progress task exists, summarize it to the user and ask if they want to continue
+
+### During a Session
+- **When planning**: Save the full plan to `session-notes.md` immediately after the user approves it
+- **When making progress**: Update `session-notes.md` after completing each significant step — note what was done, what changed, and what's next
+- **When encountering blockers**: Record the blocker and any relevant context
+
+### Session Notes Format
+```markdown
+# Session Notes
+
+## Current Task
+<Brief description of what we're working on>
+
+## Plan
+<The approved plan with checkboxes>
+- [x] Completed step
+- [ ] Pending step
+
+## Progress Log
+### <Date>
+- <What was accomplished>
+- <Files changed>
+- <Decisions made>
+
+## Blockers / Open Questions
+- <Any unresolved issues>
+
+## Context for Next Session
+- <Key details needed to resume efficiently>
+```
+
+### On Session End or Token Warning
+- Ensure `session-notes.md` is up to date with the latest state before the session ends
+
 ## Default Credentials
 
 The default username is `mystic` and password is `password` across services (marked as TODO in the compose file — these should be changed before production use).
