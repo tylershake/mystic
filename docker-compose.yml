@@ -165,9 +165,9 @@ services:
     ports:
       - "50000:50000"  # JNLP agent port
     networks:
-      web:
-        aliases:
-          - jenkins.mystic.home
+      - web
+    extra_hosts:
+      - "jenkins.mystic.home:host-gateway"
     volumes:
       # Jenkins home directory (UID 1000:1000 required)
       - ${MYSTIC_ROOT:-.}/jenkins/:/var/jenkins_home
@@ -201,9 +201,12 @@ services:
     ports:
       - "54663:54663"  # Remote agent port
     networks:
-      web:
-        aliases:
-          - bamboo.mystic.home
+      - web
+    extra_hosts:
+      - "bamboo.mystic.home:host-gateway"
+      - "jira.mystic.home:host-gateway"
+      - "bitbucket.mystic.home:host-gateway"
+      - "confluence.mystic.home:host-gateway"
     volumes:
       # Bamboo data directory (UID 2005:2005 required)
       - ${MYSTIC_ROOT:-.}/bamboo/:/var/atlassian/application-data/bamboo
@@ -255,9 +258,12 @@ services:
     ports:
       - "8091:8091"  # Synchrony collaborative editing
     networks:
-      web:
-        aliases:
-          - confluence.mystic.home
+      - web
+    extra_hosts:
+      - "bamboo.mystic.home:host-gateway"
+      - "jira.mystic.home:host-gateway"
+      - "bitbucket.mystic.home:host-gateway"
+      - "confluence.mystic.home:host-gateway"
     volumes:
       # Confluence data directory (UID 2002:2002 required)
       - ${MYSTIC_ROOT:-.}/confluence/:/var/atlassian/application-data/confluence
@@ -306,9 +312,12 @@ services:
     expose:
       - "8080"
     networks:
-      web:
-        aliases:
-          - jira.mystic.home
+      - web
+    extra_hosts:
+      - "bamboo.mystic.home:host-gateway"
+      - "jira.mystic.home:host-gateway"
+      - "bitbucket.mystic.home:host-gateway"
+      - "confluence.mystic.home:host-gateway"
     volumes:
       # Jira data directory (UID 2001:2001 required)
       - ${MYSTIC_ROOT:-.}/jira/:/var/atlassian/application-data/jira
@@ -360,9 +369,12 @@ services:
     ports:
       - "7999:7999"  # SSH port for Git operations
     networks:
-      web:
-        aliases:
-          - bitbucket.mystic.home
+      - web
+    extra_hosts:
+      - "bamboo.mystic.home:host-gateway"
+      - "jira.mystic.home:host-gateway"
+      - "bitbucket.mystic.home:host-gateway"
+      - "confluence.mystic.home:host-gateway"
     volumes:
       # Bitbucket data directory (UID 2003:2003 required)
       - ${MYSTIC_ROOT:-.}/bitbucket/:/var/atlassian/application-data/bitbucket
